@@ -22,6 +22,11 @@ dependencies:
   google_mobile_ads: ^6.0.0
   video_player: ^2.10.0
   hooks_riverpod: ^3.0.0
+  firebase_core: ^4.1.0
+  firebase_analytics: ^12.0.1
+  firebase_crashlytics: ^5.0.1
+  firebase_performance: ^0.11.0+1
+
 
 dev_dependencies:
   flutter_test:

@@ -1,5 +1,6 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/foundation.dart';
 
 class AnalyticsService {
   static final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
@@ -9,6 +10,8 @@ class AnalyticsService {
     await _analytics.setAnalyticsCollectionEnabled(true);
     await _crashlytics.setCrashlyticsCollectionEnabled(true);
   }
+
+  // ======== ВИДЕО ========
 
   static Future<void> logVideoStart(
       String videoId, int position, int duration, String sessionId) async {
@@ -67,6 +70,8 @@ class AnalyticsService {
       'swipe_speed': speed,
     });
   }
+
+  // ======== РЕКЛАМА ========
 
   static Future<void> logAdShown(String adType, String adUnitId, int position,
       String sessionId, double loadTime) async {
@@ -127,6 +132,8 @@ class AnalyticsService {
     });
   }
 
+  // ======== APP ========
+
   static Future<void> logAppStartup(
       int startupTime, String deviceModel, String appVersion) async {
     await _analytics.logEvent(name: 'app_startup_time', parameters: {
@@ -145,6 +152,8 @@ class AnalyticsService {
       },
     );
   }
+
+  // ======== ERRORS ========
 
   static Future<void> logVideoLoadError(String videoId, String errorType,
       String errorMessage, int retryCount) async {
@@ -176,7 +185,7 @@ class AnalyticsService {
 
   static Future<void> logSessionStart(String sessionId, String userId,
       String appVersion, String deviceInfo) async {
-    await _analytics.logEvent(name: 'session_start', parameters: {
+    await _analytics.logEvent(name: 'app_session_start', parameters: {
       'session_id': sessionId,
       'user_id': userId,
       'app_version': appVersion,
@@ -194,6 +203,8 @@ class AnalyticsService {
     });
   }
 
+  // ======== КРАШИ ========
+
   static Future<void> logError(dynamic error, StackTrace stack,
       {String context = ''}) async {
     await _crashlytics.recordError(error, stack, reason: context);
@@ -205,5 +216,85 @@ class AnalyticsService {
 
   static Future<void> setUserProperty(String name, String value) async {
     await _analytics.setUserProperty(name: name, value: value);
+  }
+
+  // ======== КЭШ + MEMORY ========
+
+  static Future<void> logCacheHit(String videoId) async {
+    await _analytics.logEvent(name: 'cache_hit', parameters: {
+      'video_id': videoId,
+    });
+    debugPrint('[Analytics] cache_hit $videoId');
+  }
+
+  static Future<void> logCacheMiss(String videoId) async {
+    await _analytics.logEvent(name: 'cache_miss', parameters: {
+      'video_id': videoId,
+    });
+    debugPrint('[Analytics] cache_miss $videoId');
+  }
+
+  static Future<void> logVideoPreloadStart(String videoId) async {
+    await _analytics.logEvent(name: 'video_preload_start', parameters: {
+      'video_id': videoId,
+    });
+    debugPrint('[Analytics] preload_start $videoId');
+  }
+
+  static Future<void> logVideoPreloadSuccess(String videoId) async {
+    await _analytics.logEvent(name: 'video_preload_success', parameters: {
+      'video_id': videoId,
+    });
+    debugPrint('[Analytics] preload_success $videoId');
+  }
+
+  static Future<void> logCacheCleanup(String reason, Object info) async {
+    await _analytics.logEvent(name: 'cache_cleanup', parameters: {
+      'reason': reason,
+      'info': info.toString(),
+    });
+    debugPrint('[Analytics] cache_cleanup reason=$reason info=$info');
+  }
+
+  static Future<void> logMemoryUsage(int usedMB) async {
+    await _analytics.logEvent(name: 'memory_usage', parameters: {
+      'used_mb': usedMB,
+    });
+    debugPrint('[Analytics] memory_usage ${usedMB}MB');
+  }
+
+  static Future<void> logVideoPausedForAd(int page, String sessionId) async {
+    await _analytics.logEvent(name: 'video_paused_for_ad', parameters: {
+      'page': page,
+      'session_id': sessionId,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
+    debugPrint('[Analytics] video_paused_for_ad page=$page session=$sessionId');
+  }
+
+  static Future<void> logVideoResumedAfterAd(int page, String sessionId) async {
+    await _analytics.logEvent(name: 'video_resumed_after_ad', parameters: {
+      'page': page,
+      'session_id': sessionId,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
+    debugPrint(
+        '[Analytics] video_resumed_after_ad page=$page session=$sessionId');
+  }
+
+  static Future<void> logVideoPauseFailed(int page, String error) async {
+    await _analytics.logEvent(name: 'video_pause_failed', parameters: {
+      'page': page,
+      'error': error,
+    });
+    debugPrint('[Analytics] video_pause_failed page=$page error=$error');
+  }
+
+  static Future<void> logVideoResumeFailed(int page, String error) async {
+    await _analytics.logEvent(name: 'video_resume_failed', parameters: {
+      'page': page,
+      'error': error,
+    });
+    debugPrint('[Analytics] video_resume_failed page=$page error=$error');
   }
 }

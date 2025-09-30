@@ -5,28 +5,29 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.5.2
+  sdk: '>=3.2.0 <4.0.0' 
 
 dependencies:
   flutter:
     sdk: flutter
-  flutter_inappwebview: ^6.0.0
-  youtube_player_iframe: ^5.2.2
-  youtube_player_flutter: ^9.1.2
-  applovin_max: ^4.5.2
-  hexcolor: ^3.0.1
-  flutter_riverpod: ^3.0.0-dev.3
-  flutter_hooks: ^0.21.3+1
-  dio: ^5.8.0+1
-  cupertino_icons: ^1.0.8
-  google_mobile_ads: ^6.0.0
-  video_player: ^2.10.0
-  hooks_riverpod: ^3.0.0
-  firebase_core: ^4.1.0
-  firebase_analytics: ^12.0.1
-  firebase_crashlytics: ^5.0.1
-  firebase_performance: ^0.11.0+1
+    
 
+  youtube_player_flutter: ^9.1.2
+  google_mobile_ads:    
+  applovin_max: ^4.5.2
+
+ 
+  firebase_core: ^4.1.1
+  firebase_analytics: ^12.0.2
+  firebase_crashlytics: ^5.0.2
+  firebase_performance: ^0.11.1
+
+ 
+  flutter_riverpod: ^3.0.0
+  flutter_hooks: ^0.21.3+1
+  hexcolor: ^3.0.1
+  dio: ^5.9.0
+  cupertino_icons: ^1.0.8
 
 dev_dependencies:
   flutter_test:

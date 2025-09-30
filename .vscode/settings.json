@@ -47,5 +47,6 @@
 			"source.fixAll": "always",
 			"source.organizeImports": "always"
 		},
-	}
+	},
+	"liveServer.settings.port": 5501
 }

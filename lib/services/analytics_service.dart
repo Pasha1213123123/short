@@ -11,6 +11,40 @@ class AnalyticsService {
     await _crashlytics.setCrashlyticsCollectionEnabled(true);
   }
 
+  // ✅ НОВЫЙ МЕТОД: для батчевой отправки
+  static Future<void> logBatchEvents(List<Map<String, dynamic>> events) async {
+    if (events.isEmpty) return;
+
+    if (kDebugMode) {
+      debugPrint('[Analytics] FLUSHING BATCH: ${events.length} events');
+    }
+
+    for (final event in events) {
+      final name = event['name'] as String;
+      final parameters = event['parameters'] as Map<String, dynamic>;
+
+      switch (name) {
+        case 'cache_hit':
+          await logCacheHit(parameters['video_id'] as String);
+          break;
+        case 'cache_miss':
+          await logCacheMiss(parameters['video_id'] as String);
+          break;
+        case 'cache_cleanup':
+          await logCacheCleanup(
+              parameters['reason'] as String, parameters['info']);
+          break;
+        case 'preload':
+          await logVideoPreloadStart(parameters['video_id'] as String);
+          break;
+        default:
+          if (kDebugMode) {
+            debugPrint('  [Warning] Unknown batched event: $name');
+          }
+      }
+    }
+  }
+
   // ======== ВИДЕО ========
 
   static Future<void> logVideoStart(
@@ -218,34 +252,34 @@ class AnalyticsService {
     await _analytics.setUserProperty(name: name, value: value);
   }
 
-  // ======== КЭШ + MEMORY ========
+  // ======== КЭШ + MEMORY (для батчера) ========
 
   static Future<void> logCacheHit(String videoId) async {
     await _analytics.logEvent(name: 'cache_hit', parameters: {
       'video_id': videoId,
     });
-    debugPrint('[Analytics] cache_hit $videoId');
+    if (kDebugMode) debugPrint('[Analytics] cache_hit $videoId');
   }
 
   static Future<void> logCacheMiss(String videoId) async {
     await _analytics.logEvent(name: 'cache_miss', parameters: {
       'video_id': videoId,
     });
-    debugPrint('[Analytics] cache_miss $videoId');
+    if (kDebugMode) debugPrint('[Analytics] cache_miss $videoId');
   }
 
   static Future<void> logVideoPreloadStart(String videoId) async {
     await _analytics.logEvent(name: 'video_preload_start', parameters: {
       'video_id': videoId,
     });
-    debugPrint('[Analytics] preload_start $videoId');
+    if (kDebugMode) debugPrint('[Analytics] preload_start $videoId');
   }
 
   static Future<void> logVideoPreloadSuccess(String videoId) async {
     await _analytics.logEvent(name: 'video_preload_success', parameters: {
       'video_id': videoId,
     });
-    debugPrint('[Analytics] preload_success $videoId');
+    if (kDebugMode) debugPrint('[Analytics] preload_success $videoId');
   }
 
   static Future<void> logCacheCleanup(String reason, Object info) async {
@@ -253,14 +287,15 @@ class AnalyticsService {
       'reason': reason,
       'info': info.toString(),
     });
-    debugPrint('[Analytics] cache_cleanup reason=$reason info=$info');
+    if (kDebugMode)
+      debugPrint('[Analytics] cache_cleanup reason=$reason info=$info');
   }
 
   static Future<void> logMemoryUsage(int usedMB) async {
     await _analytics.logEvent(name: 'memory_usage', parameters: {
       'used_mb': usedMB,
     });
-    debugPrint('[Analytics] memory_usage ${usedMB}MB');
+    if (kDebugMode) debugPrint('[Analytics] memory_usage ${usedMB}MB');
   }
 
   static Future<void> logVideoPausedForAd(int page, String sessionId) async {
@@ -269,7 +304,9 @@ class AnalyticsService {
       'session_id': sessionId,
       'timestamp': DateTime.now().toIso8601String(),
     });
-    debugPrint('[Analytics] video_paused_for_ad page=$page session=$sessionId');
+    if (kDebugMode)
+      debugPrint(
+          '[Analytics] video_paused_for_ad page=$page session=$sessionId');
   }
 
   static Future<void> logVideoResumedAfterAd(int page, String sessionId) async {
@@ -278,8 +315,9 @@ class AnalyticsService {
       'session_id': sessionId,
       'timestamp': DateTime.now().toIso8601String(),
     });
-    debugPrint(
-        '[Analytics] video_resumed_after_ad page=$page session=$sessionId');
+    if (kDebugMode)
+      debugPrint(
+          '[Analytics] video_resumed_after_ad page=$page session=$sessionId');
   }
 
   static Future<void> logVideoPauseFailed(int page, String error) async {
@@ -287,7 +325,8 @@ class AnalyticsService {
       'page': page,
       'error': error,
     });
-    debugPrint('[Analytics] video_pause_failed page=$page error=$error');
+    if (kDebugMode)
+      debugPrint('[Analytics] video_pause_failed page=$page error=$error');
   }
 
   static Future<void> logVideoResumeFailed(int page, String error) async {
@@ -295,6 +334,7 @@ class AnalyticsService {
       'page': page,
       'error': error,
     });
-    debugPrint('[Analytics] video_resume_failed page=$page error=$error');
+    if (kDebugMode)
+      debugPrint('[Analytics] video_resume_failed page=$page error=$error');
   }
 }

@@ -1,5 +1,3 @@
-// lib/services/analytics_service.dart
-
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
@@ -26,7 +24,6 @@ class AnalyticsService {
       final name = event['name'] as String;
       final parameters = event['parameters'] as Map<String, dynamic>;
 
-      // Батчинг по-прежнему использует старые методы, так как они уже оптимизированы для него
       switch (name) {
         case 'cache_hit':
           await logCacheHit(parameters['video_id'] as String);

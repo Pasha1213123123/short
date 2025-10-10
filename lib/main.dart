@@ -4,7 +4,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -12,8 +11,8 @@ import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 import 'firebase_options.dart';
 import 'services/analytics_service.dart';
+import 'utils/video_player_utils.dart';
 
-// Класс конфигурации приложения
 class AppConfig {
   static const int maxCacheSize = 7;
   static const Duration cacheTimeout = Duration(minutes: 10);
@@ -26,7 +25,6 @@ class AppConfig {
   static const int memoryCleanupThresholdMB = 250;
 }
 
-// Класс для пакетной отправки событий аналитики
 class AnalyticsBatcher {
   final List<Map<String, dynamic>> _events = [];
   Timer? _timer;
@@ -64,7 +62,6 @@ class AnalyticsBatcher {
   void logPreload(String videoId) => logEvent('preload', {'video_id': videoId});
 }
 
-// Расширение для безопасной работы с контроллером YouTube
 extension YoutubePlayerControllerExtension on YoutubePlayerController {
   void safePause() {
     if (value.isPlaying) {
@@ -79,7 +76,6 @@ extension YoutubePlayerControllerExtension on YoutubePlayerController {
   }
 }
 
-// Менеджер для отслеживания состояния рекламы
 class VideoPlayerStateManager {
   bool _isAdShowing = false;
   final String _sessionId;
@@ -108,14 +104,13 @@ class ShortModel {
 }
 
 // ----------------------------------------------------
-// ПРОВАЙДЕРЫ RIVERPOD (Управление состоянием и зависимостями)
+// ПРОВАЙДЕРЫ RIVERPOD
 // ----------------------------------------------------
 
 final shortsViewerCurrentPageProvider = StateProvider<int>((ref) => 0);
 final shortsViewerCurrentControllerProvider =
     StateProvider<YoutubePlayerController?>((ref) => null);
 
-// Состояние сессии и рекламы
 class AdSessionState {
   final int videosWatched;
   final int adsShown;
@@ -146,7 +141,6 @@ class AdSessionState {
   }
 }
 
-// Notifier для управления сессией и рекламой
 class AdSessionNotifier extends StateNotifier<AdSessionState> {
   final Ref _ref;
   InterstitialAd? _interstitialAd;
@@ -187,8 +181,9 @@ class AdSessionNotifier extends StateNotifier<AdSessionState> {
 
   void _loadInterstitialAd({int retryCount = 0}) async {
     if (retryCount >= 5) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint("AdMob load failed 5 times. Stopping retries.");
+      }
       return;
     }
     final delay = Duration(
@@ -228,8 +223,9 @@ class AdSessionNotifier extends StateNotifier<AdSessionState> {
               });
 
               state = state.copyWith(videosWatched: 0);
-              if (kDebugMode)
+              if (kDebugMode) {
                 debugPrint("Video Watched Counter reset to 0 (Ad shown).");
+              }
 
               _loadInterstitialAd();
             },
@@ -253,9 +249,10 @@ class AdSessionNotifier extends StateNotifier<AdSessionState> {
           );
         },
         onAdFailedToLoad: (error) {
-          if (kDebugMode)
+          if (kDebugMode) {
             debugPrint(
                 "AdMob FAILED to load: ${error.code} / ${error.message}");
+          }
           _interstitialAd = null;
           AnalyticsService.logAdLoadFailed(
               "interstitial",
@@ -319,51 +316,14 @@ final shortsViewerAggressivePlayProvider = Provider<
 
 Future<void> _playVideoWhenReady(Ref ref, YoutubePlayerController controller,
     {bool shouldSeekToZero = false}) async {
-  final currentPage = ref.read(shortsViewerCurrentPageProvider);
   final isAdShowing = ref.read(isAdShowingProvider);
-
-  while (!controller.value.isReady) {
-    await Future.delayed(const Duration(milliseconds: 100));
-  }
-
   if (isAdShowing) return;
 
-  if (shouldSeekToZero) {
-    controller.seekTo(Duration.zero);
-  }
-
-  controller.unMute();
-  controller.play();
-
-  int attempts = 0;
-  Timer? retryTimer;
-
-  retryTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
-    final currentWidgetPage = ref.read(shortsViewerCurrentPageProvider);
-    final currentAdState = ref.read(isAdShowingProvider);
-
-    if (currentWidgetPage != currentPage || currentAdState) {
-      timer.cancel();
-      return;
-    }
-
-    if (controller.value.isPlaying && controller.value.volume > 0) {
-      timer.cancel();
-      return;
-    }
-
-    if (attempts < 3) {
-      if (kDebugMode)
-        debugPrint("Video Launch Retry (via Provider): $attempts");
-      controller.unMute();
-      controller.play();
-      attempts++;
-    } else {
-      timer.cancel();
-      if (kDebugMode)
-        debugPrint("Video Launch Failed after 3 retries (via Provider).");
-    }
-  });
+  await VideoPlayerUtils.playWithRetry(
+    controller: controller,
+    debugContext: "Provider",
+    shouldSeekToZero: shouldSeekToZero,
+  );
 }
 
 final analyticsBatcherProvider = Provider<AnalyticsBatcher>((ref) {
@@ -393,8 +353,6 @@ final videoPreloaderProvider = Provider<VideoPreloader>((ref) {
   final shorts = ref.watch(shortsStateProvider);
   return VideoPreloader(cacheManager, shorts);
 });
-
-const MethodChannel _memoryChannel = MethodChannel('com.example.app/memory');
 
 final memoryMonitorProvider = Provider<MemoryMonitor>((ref) {
   final cacheManager = ref.watch(videoCacheManagerProvider);
@@ -504,7 +462,6 @@ class VideoCacheManager {
     return null;
   }
 
-  // Получение или создание контроллера с проверкой на "живой" статус
   YoutubePlayerController getOrCreate(
       String videoId, YoutubePlayerController Function() creator) {
     final cached = _cache[videoId];
@@ -795,7 +752,6 @@ class _ShortsViewerState extends ConsumerState<ShortsViewer>
     return ref.read(shortsViewerCurrentControllerProvider);
   }
 
-  // Логика смены страницы и счетчика видео
   void _onPageChanged(int page, List<ShortModel> shorts) {
     final isAdShowing = ref.read(isAdShowingProvider);
     if (isAdShowing) return;
@@ -805,7 +761,6 @@ class _ShortsViewerState extends ConsumerState<ShortsViewer>
     final adNotifier = ref.read(adSessionNotifierProvider.notifier);
     final aggressivePlay = ref.read(shortsViewerAggressivePlayProvider);
 
-    // 1. Обновление состояния (СИНХРОННО)
     setState(() => _currentPage = page);
     ref.read(shortsViewerCurrentPageProvider.notifier).state = page;
 
@@ -813,7 +768,6 @@ class _ShortsViewerState extends ConsumerState<ShortsViewer>
       adNotifier.incrementVideoWatched();
     }
 
-    // 2. АСИНХРОННАЯ ОБРАБОТКА
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final videosWatched = ref.read(videosWatchedProvider);
       if (videosWatched > 0 &&
@@ -874,8 +828,9 @@ class _ShortsViewerState extends ConsumerState<ShortsViewer>
                 final adNotifier = ref.read(adSessionNotifierProvider.notifier);
 
                 adNotifier.incrementVideoWatched();
-                if (kDebugMode)
+                if (kDebugMode) {
                   debugPrint("Video Watched Counter initialized to 1.");
+                }
 
                 final initialController = preloader.getControllerForIndex(0);
                 ref.read(shortsViewerCurrentControllerProvider.notifier).state =
@@ -942,7 +897,7 @@ class _ShortsViewerState extends ConsumerState<ShortsViewer>
         errorMessage: 'Ошибка загрузки данных',
         details:
             'Не удалось получить список видео. Детали: ${error.toString().split(':')[0]}',
-        onRetry: () => ref.refresh(shortsLoaderProvider),
+        onRetry: () => ref.invalidate(shortsLoaderProvider),
       ),
     );
   }
@@ -985,7 +940,7 @@ class VideoErrorView extends StatelessWidget {
               Text(
                 'Детали: $details',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white70, fontSize: 14),
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
               ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
@@ -1070,32 +1025,11 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage>
   void _attemptAggressivePlay() {
     if (!widget.isCurrentPage || widget.isAdShowing || !mounted) return;
 
-    int attempts = 0;
-    Timer? retryTimer;
-    final controller = widget.controller;
-
-    retryTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
-      if (!mounted || !widget.isCurrentPage || widget.isAdShowing) {
-        timer.cancel();
-        return;
-      }
-
-      if (controller.value.isPlaying) {
-        timer.cancel();
-        return;
-      }
-
-      if (attempts < 3) {
-        if (kDebugMode) debugPrint("Video Player Retry (Internal): $attempts");
-        controller.unMute();
-        controller.play();
-        attempts++;
-      } else {
-        timer.cancel();
-        if (kDebugMode)
-          debugPrint("Video Player Launch Failed after 3 retries (Internal).");
-      }
-    });
+    VideoPlayerUtils.playWithRetry(
+      controller: widget.controller,
+      debugContext: "Internal Widget",
+      shouldSeekToZero: false,
+    );
   }
 
   void _playerStateListener() {

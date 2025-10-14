@@ -319,10 +319,13 @@ Future<void> _playVideoWhenReady(Ref ref, YoutubePlayerController controller,
   final isAdShowing = ref.read(isAdShowingProvider);
   if (isAdShowing) return;
 
+  final shouldCancel = () => ref.read(isAdShowingProvider);
+
   await VideoPlayerUtils.playWithRetry(
     controller: controller,
     debugContext: "Provider",
     shouldSeekToZero: shouldSeekToZero,
+    shouldCancelRetry: shouldCancel,
   );
 }
 
@@ -1025,10 +1028,13 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage>
   void _attemptAggressivePlay() {
     if (!widget.isCurrentPage || widget.isAdShowing || !mounted) return;
 
+    final shouldCancel = () => widget.isAdShowing;
+
     VideoPlayerUtils.playWithRetry(
       controller: widget.controller,
       debugContext: "Internal Widget",
       shouldSeekToZero: false,
+      shouldCancelRetry: shouldCancel,
     );
   }
 
@@ -1050,6 +1056,9 @@ class _ShortsPlayerPageState extends State<ShortsPlayerPage>
 
   void _togglePlaying() {
     final controller = widget.controller;
+
+    if (widget.isAdShowing) return;
+
     if (controller.value.isPlaying) {
       controller.pause();
     } else {

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:video_player/video_player.dart';
 
 class Movie {
@@ -10,6 +11,7 @@ class Movie {
   final String description;
   final List<String> genres;
   final String imageUrl;
+  final String? playbackId;
 
   Movie({
     required this.title,
@@ -17,29 +19,114 @@ class Movie {
     required this.description,
     required this.genres,
     required this.imageUrl,
+    this.playbackId,
   });
+
+  Uri get videoUrl {
+    if (playbackId != null) {
+      return Uri.parse('https://stream.mux.com/$playbackId.m3u8');
+    }
+
+    return Uri.parse('assets/sample_video.mp4');
+  }
 }
 
-void main() {
-  final sampleMovie = Movie(
-    title: 'Lost in the Woods',
-    rating: 4.5,
-    description: 'A thrilling adventure through mysterious forests',
-    genres: ['Adventure', 'Thriller', 'Mystery'],
-    imageUrl: '',
-  );
+const String _initialPlaybackId1 =
+    '02e2I4ku02ubUtHr00ftGmZyH00wGEd2QxKwqVQUHjEA3U8';
+const String _initialPlaybackId2 =
+    'NhzP8HsQMuRwV2KhV5Pz6cb4PKqKnjPAKApLOgCMAqI';
+const String _initialPlaybackId3 =
+    'eFnl0094sOplLax9LiZ7XP012kDRmfF7KWN5N2UlXqwbE';
 
+// --- ПРОВАЙДЕРЫ RIVERPOD ---
+
+final shortVideosProvider =
+    StateNotifierProvider<ShortVideosNotifier, List<Movie>>((ref) {
+  return ShortVideosNotifier();
+});
+
+class ShortVideosNotifier extends StateNotifier<List<Movie>> {
+  ShortVideosNotifier() : super(_initialVideos);
+
+  static final List<Movie> _initialVideos = [
+    Movie(
+      title: 'Short 1',
+      rating: 4.8,
+      description: '1',
+      genres: ['Test', 'Mux'],
+      imageUrl: '',
+      playbackId: _initialPlaybackId1,
+    ),
+    Movie(
+      title: 'Short 2',
+      rating: 4.2,
+      description: '2',
+      genres: ['UI', 'UX'],
+      imageUrl: '',
+      playbackId: _initialPlaybackId2,
+    ),
+    Movie(
+      title: 'Short 3',
+      rating: 4.0,
+      description: '3',
+      genres: ['Placeholder'],
+      imageUrl: '',
+      playbackId: _initialPlaybackId3,
+    ),
+  ];
+
+  Future<void> loadMoreVideos() async {
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    if (state.length >= 9) return;
+
+    final newVideos = [
+      Movie(
+        title: 'Short ${state.length + 1}: Loaded (ФЕЙК)',
+        rating: 4.6,
+        description:
+            'Новый загруженный контент. ID: FAKE_MUX_ID_00${state.length + 1}',
+        genres: ['Load', 'New'],
+        imageUrl: '',
+        playbackId: 'FAKE_MUX_ID_00${state.length + 1}',
+      ),
+      Movie(
+        title: 'Short ${state.length + 2}: Loaded (ФЕЙК)',
+        rating: 4.7,
+        description: 'Еще один загруженный контент.',
+        genres: ['Load', 'New'],
+        imageUrl: '',
+        playbackId: 'FAKE_MUX_ID_00${state.length + 2}',
+      ),
+      Movie(
+        title: 'Short ${state.length + 3}: Last One (ФЕЙК)',
+        rating: 4.9,
+        description: 'Последняя заглушка.',
+        genres: ['Final'],
+        imageUrl: '',
+        playbackId: 'FAKE_MUX_ID_00${state.length + 3}',
+      ),
+    ];
+
+    state = [...state, ...newVideos];
+  }
+}
+
+final currentVideoControllerProvider =
+    StateProvider<VideoPlayerController?>((ref) => null);
+
+final filterVisibilityProvider = StateProvider<bool>((ref) => true);
+
+void main() {
   runApp(
-    ProviderScope(
-      child: MyApp(sampleMovie: sampleMovie),
+    const ProviderScope(
+      child: MyApp(),
     ),
   );
 }
 
 class MyApp extends StatelessWidget {
-  final Movie sampleMovie;
-
-  const MyApp({super.key, required this.sampleMovie});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -51,15 +138,86 @@ class MyApp extends StatelessWidget {
               fontFamily: 'Roboto',
             ),
       ),
-      home: ShortPlayerScreen(movie: sampleMovie),
+      home: const ShortsPageView(),
     );
   }
 }
 
+// --- ЭКРАН С ПРОКРУТКОЙ (PageView) ---
+
+class ShortsPageView extends ConsumerStatefulWidget {
+  const ShortsPageView({super.key});
+
+  @override
+  ConsumerState<ShortsPageView> createState() => _ShortsPageViewState();
+}
+
+class _ShortsPageViewState extends ConsumerState<ShortsPageView> {
+  late PageController _pageController;
+  int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onPageChanged(int newIndex) {
+    setState(() {
+      _currentIndex = newIndex;
+    });
+
+    final videoList = ref.read(shortVideosProvider);
+
+    if (newIndex >= videoList.length - 2) {
+      Future.microtask(
+          () => ref.read(shortVideosProvider.notifier).loadMoreVideos());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final videos = ref.watch(shortVideosProvider);
+
+    return Scaffold(
+      body: PageView.builder(
+        controller: _pageController,
+        scrollDirection: Axis.vertical,
+        itemCount: videos.length,
+        onPageChanged: _onPageChanged,
+        itemBuilder: (context, index) {
+          final movie = videos[index];
+
+          return ShortPlayerScreen(
+            movie: movie,
+            index: index,
+            isCurrent: index == _currentIndex,
+          );
+        },
+      ),
+    );
+  }
+}
+
+// --- SHORT PLAYER SCREEN  ---
+
 class ShortPlayerScreen extends ConsumerStatefulWidget {
   final Movie movie;
+  final int index;
+  final bool isCurrent;
 
-  const ShortPlayerScreen({super.key, required this.movie});
+  const ShortPlayerScreen({
+    super.key,
+    required this.movie,
+    required this.index,
+    required this.isCurrent,
+  });
 
   @override
   ConsumerState<ShortPlayerScreen> createState() => _ShortPlayerScreenState();
@@ -68,12 +226,12 @@ class ShortPlayerScreen extends ConsumerStatefulWidget {
 class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
   late VideoPlayerController _videoController;
   bool _isVideoInitialized = false;
+  String? _videoError;
 
   bool _isIconVisible = false;
   Timer? _iconVisibilityTimer;
 
   String _selectedGenre = 'All';
-  bool _showFilters = true;
   final List<String> _genres = [
     'All',
     'Action',
@@ -86,26 +244,87 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    _videoController = VideoPlayerController.asset('assets/test.mp4')
+
+    _videoController = VideoPlayerController.networkUrl(widget.movie.videoUrl)
       ..initialize().then((_) {
         if (mounted) {
           setState(() {
             _isVideoInitialized = true;
+
+            if (widget.isCurrent) {
+              _startVideo();
+            }
           });
-          _videoController.play();
           _videoController.setLooping(true);
+        }
+      }).catchError((error) {
+        if (mounted) {
+          print('Video initialization error for ${widget.movie.title}: $error');
+          setState(() {
+            _isVideoInitialized = false;
+            if (error.toString().contains('404')) {
+              _videoError =
+                  'Ошибка 404: Видео не найдено. (Playback ID: ${widget.movie.playbackId})';
+            } else {
+              _videoError = 'Ошибка загрузки видео: ${error.toString()}';
+            }
+          });
         }
       });
 
-    _videoController.addListener(() {
+    _videoController.addListener(_onVideoUpdate);
+  }
+
+  void _onVideoUpdate() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _startVideo() {
+    if (!_videoController.value.isInitialized) return;
+    _videoController.play();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        setState(() {});
+        ref.read(currentVideoControllerProvider.notifier).state =
+            _videoController;
       }
     });
   }
 
+  void _pauseVideo() {
+    if (!_videoController.value.isInitialized) return;
+    _videoController.pause();
+  }
+
+  @override
+  void didUpdateWidget(covariant ShortPlayerScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (widget.isCurrent != oldWidget.isCurrent) {
+      if (widget.isCurrent) {
+        if (_isVideoInitialized && _videoController.value.isInitialized) {
+          _startVideo();
+        }
+      } else {
+        if (_isVideoInitialized && _videoController.value.isInitialized) {
+          _pauseVideo();
+        }
+      }
+    }
+  }
+
   @override
   void dispose() {
+    _videoController.removeListener(_onVideoUpdate);
+
+    Future.microtask(() {
+      if (ref.read(currentVideoControllerProvider) == _videoController) {
+        ref.read(currentVideoControllerProvider.notifier).state = null;
+      }
+    });
+
     _videoController.dispose();
     _iconVisibilityTimer?.cancel();
     super.dispose();
@@ -159,6 +378,8 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
   }
 
   Widget _buildFullScreenTapHandler() {
+    if (_videoError != null) return const SizedBox.shrink();
+
     return Positioned.fill(
       child: GestureDetector(
         child: Container(color: Colors.transparent),
@@ -182,6 +403,8 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
         ? Icons.pause
         : Icons.play_arrow_rounded;
 
+    if (_videoError != null) return const SizedBox.shrink();
+
     return Center(
       child: AnimatedOpacity(
         opacity: _isIconVisible ? 1.0 : 0.0,
@@ -198,20 +421,55 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
   }
 
   Widget _buildBackgroundVideoPlayer() {
-    if (_isVideoInitialized) {
-      return Positioned.fill(
-        child: FittedBox(
-          fit: BoxFit.cover,
-          child: SizedBox(
-            width: _videoController.value.size.width,
-            height: _videoController.value.size.height,
-            child: VideoPlayer(_videoController),
+    if (_videoError != null) {
+      return Container(
+        color: Colors.red[900]!.withOpacity(0.8),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32.0),
+            child: Text(
+              _videoError!,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
           ),
         ),
       );
-    } else {
-      return Container(color: Colors.black);
     }
+
+    if (!_isVideoInitialized || !_videoController.value.isInitialized) {
+      return Container(
+        color: Colors.black,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(color: Colors.white54),
+              const SizedBox(height: 16),
+              Text(
+                'Загрузка видео ${widget.index + 1}: ${widget.movie.title}',
+                style: const TextStyle(color: Colors.white70),
+                textAlign: TextAlign.center,
+              )
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Positioned.fill(
+      child: FittedBox(
+        fit: BoxFit.cover,
+        child: SizedBox(
+          width: _videoController.value.size.width,
+          height: _videoController.value.size.height,
+          child: VideoPlayer(_videoController),
+        ),
+      ),
+    );
   }
 
   Widget _buildProgressBar() {
@@ -221,6 +479,8 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
       progress = _videoController.value.position.inMilliseconds /
           _videoController.value.duration.inMilliseconds;
     }
+
+    if (_videoError != null) return const SizedBox.shrink();
 
     return SizedBox(
       height: 4,
@@ -252,6 +512,8 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
   }
 
   Widget _buildTopBar() {
+    final showFilters = ref.watch(filterVisibilityProvider);
+
     return Align(
       alignment: Alignment.topCenter,
       child: SafeArea(
@@ -262,15 +524,14 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
               const SizedBox(width: 16),
               Container(
                 decoration: BoxDecoration(
-                  color: _showFilters ? Colors.black.withOpacity(0.5) : null,
+                  color: showFilters ? Colors.black.withOpacity(0.5) : null,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: IconButton(
                   icon: const Icon(Icons.menu, color: Colors.white),
                   onPressed: () {
-                    setState(() {
-                      _showFilters = !_showFilters;
-                    });
+                    ref.read(filterVisibilityProvider.notifier).state =
+                        !showFilters;
                   },
                 ),
               ),
@@ -279,7 +540,7 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
                 child: AnimatedSize(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeInOut,
-                  child: _showFilters
+                  child: showFilters
                       ? SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: Row(

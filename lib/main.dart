@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:video_player/video_player.dart';
 
+import 'services/mux_api_service.dart';
+
+// --- МОДЕЛИ  ---
 class Movie {
   final String title;
   final double rating;
@@ -31,84 +34,90 @@ class Movie {
   }
 }
 
-const String _initialPlaybackId1 =
-    '02e2I4ku02ubUtHr00ftGmZyH00wGEd2QxKwqVQUHjEA3U8';
-const String _initialPlaybackId2 =
-    'NhzP8HsQMuRwV2KhV5Pz6cb4PKqKnjPAKApLOgCMAqI';
-const String _initialPlaybackId3 =
-    'eFnl0094sOplLax9LiZ7XP012kDRmfF7KWN5N2UlXqwbE';
-
 // --- ПРОВАЙДЕРЫ RIVERPOD ---
 
+final muxApiServiceProvider = Provider<MuxApiService>((ref) {
+  return MuxApiService();
+});
+
 final shortVideosProvider =
-    StateNotifierProvider<ShortVideosNotifier, List<Movie>>((ref) {
-  return ShortVideosNotifier();
+    StateNotifierProvider.autoDispose<ShortVideosNotifier, List<Movie>>((ref) {
+  return ShortVideosNotifier(ref);
 });
 
 class ShortVideosNotifier extends StateNotifier<List<Movie>> {
-  ShortVideosNotifier() : super(_initialVideos);
+  final Ref _ref;
+  int _currentPage = 1;
+  bool _isLoading = false;
 
-  static final List<Movie> _initialVideos = [
-    Movie(
-      title: 'Short 1',
-      rating: 4.8,
-      description: '1',
-      genres: ['Test', 'Mux'],
-      imageUrl: '',
-      playbackId: _initialPlaybackId1,
-    ),
-    Movie(
-      title: 'Short 2',
-      rating: 4.2,
-      description: '2',
-      genres: ['UI', 'UX'],
-      imageUrl: '',
-      playbackId: _initialPlaybackId2,
-    ),
-    Movie(
-      title: 'Short 3',
-      rating: 4.0,
-      description: '3',
-      genres: ['Placeholder'],
-      imageUrl: '',
-      playbackId: _initialPlaybackId3,
-    ),
-  ];
+  ShortVideosNotifier(this._ref) : super([]) {
+    fetchInitialVideos();
+  }
+
+  Future<void> fetchInitialVideos() async {
+    _isLoading = true;
+    final apiService = _ref.read(muxApiServiceProvider);
+
+    try {
+      final videoListJson = await apiService.getVideos(page: 1);
+      final movies = _mapJsonToMovies(videoListJson);
+
+      if (mounted) {
+        state = movies;
+        _currentPage = 2;
+      }
+    } catch (e) {
+      print(e);
+    } finally {
+      _isLoading = false;
+    }
+  }
 
   Future<void> loadMoreVideos() async {
-    await Future.delayed(const Duration(milliseconds: 500));
+    if (_isLoading) return;
 
-    if (state.length >= 9) return;
+    _isLoading = true;
+    final apiService = _ref.read(muxApiServiceProvider);
 
-    final newVideos = [
-      Movie(
-        title: 'Short ${state.length + 1}: Loaded (ФЕЙК)',
-        rating: 4.6,
-        description:
-            'Новый загруженный контент. ID: FAKE_MUX_ID_00${state.length + 1}',
-        genres: ['Load', 'New'],
-        imageUrl: '',
-        playbackId: 'FAKE_MUX_ID_00${state.length + 1}',
-      ),
-      Movie(
-        title: 'Short ${state.length + 2}: Loaded (ФЕЙК)',
-        rating: 4.7,
-        description: 'Еще один загруженный контент.',
-        genres: ['Load', 'New'],
-        imageUrl: '',
-        playbackId: 'FAKE_MUX_ID_00${state.length + 2}',
-      ),
-      Movie(
-        title: 'Short ${state.length + 3}: Last One (ФЕЙК)',
-        rating: 4.9,
-        description: 'Последняя заглушка.',
-        genres: ['Final'],
-        imageUrl: '',
-        playbackId: 'FAKE_MUX_ID_00${state.length + 3}',
-      ),
-    ];
+    try {
+      final videoListJson = await apiService.getVideos(page: _currentPage);
 
-    state = [...state, ...newVideos];
+      if (videoListJson.isEmpty) {
+        _isLoading = false;
+        return;
+      }
+
+      final newMovies = _mapJsonToMovies(videoListJson);
+
+      if (mounted) {
+        state = [...state, ...newMovies];
+        _currentPage++;
+      }
+    } catch (e) {
+      print(e);
+    } finally {
+      _isLoading = false;
+    }
+  }
+
+  List<Movie> _mapJsonToMovies(List<dynamic> jsonList) {
+    final List<Movie> movies = [];
+    for (var videoData in jsonList) {
+      final playbackIds = videoData['playback_ids'] as List?;
+      if (playbackIds != null && playbackIds.isNotEmpty) {
+        final playbackId = playbackIds[0]['id'];
+
+        movies.add(Movie(
+          title: 'Video from Mux',
+          description: 'Asset ID: ${videoData['id']}',
+          playbackId: playbackId,
+          rating: 4.5,
+          genres: ['Mux', 'API'],
+          imageUrl: 'https://image.mux.com/$playbackId/thumbnail.jpg?width=200',
+        ));
+      }
+    }
+    return movies;
   }
 }
 
@@ -117,6 +126,7 @@ final currentVideoControllerProvider =
 
 final filterVisibilityProvider = StateProvider<bool>((ref) => true);
 
+// --- UI ЧАСТЬ  ---
 void main() {
   runApp(
     const ProviderScope(
@@ -142,8 +152,6 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
-// --- ЭКРАН С ПРОКРУТКОЙ (PageView) ---
 
 class ShortsPageView extends ConsumerStatefulWidget {
   const ShortsPageView({super.key});
@@ -185,6 +193,15 @@ class _ShortsPageViewState extends ConsumerState<ShortsPageView> {
   Widget build(BuildContext context) {
     final videos = ref.watch(shortVideosProvider);
 
+    if (videos.isEmpty) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: CircularProgressIndicator(color: Colors.white),
+        ),
+      );
+    }
+
     return Scaffold(
       body: PageView.builder(
         controller: _pageController,
@@ -206,7 +223,6 @@ class _ShortsPageViewState extends ConsumerState<ShortsPageView> {
 }
 
 // --- SHORT PLAYER SCREEN  ---
-
 class ShortPlayerScreen extends ConsumerStatefulWidget {
   final Movie movie;
   final int index;
@@ -320,7 +336,8 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
     _videoController.removeListener(_onVideoUpdate);
 
     Future.microtask(() {
-      if (ref.read(currentVideoControllerProvider) == _videoController) {
+      if (mounted &&
+          ref.read(currentVideoControllerProvider) == _videoController) {
         ref.read(currentVideoControllerProvider.notifier).state = null;
       }
     });

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
@@ -7,7 +8,7 @@ import 'package:video_player/video_player.dart';
 
 import 'services/mux_api_service.dart';
 
-// --- МОДЕЛИ  ---
+// --- МОДЕЛИ ---
 class Movie {
   final String title;
   final double rating;
@@ -29,7 +30,6 @@ class Movie {
     if (playbackId != null) {
       return Uri.parse('https://stream.mux.com/$playbackId.m3u8');
     }
-
     return Uri.parse('assets/sample_video.mp4');
   }
 }
@@ -73,31 +73,40 @@ class ShortVideosNotifier extends StateNotifier<List<Movie>> {
     }
   }
 
-  Future<void> loadMoreVideos() async {
-    if (_isLoading) return;
+  //потом для прокрутыки и открывания старых страниц когда база будет больше
+  // Future<void> loadMoreVideos() {
+  //   return Future.value();
+  // }
+
+  Future<bool> refresh() async {
+    if (_isLoading) return false;
 
     _isLoading = true;
+    bool hasNewContent = false;
     final apiService = _ref.read(muxApiServiceProvider);
 
     try {
-      final videoListJson = await apiService.getVideos(page: _currentPage);
+      final currentIds = state.map((movie) => movie.playbackId).toSet();
 
-      if (videoListJson.isEmpty) {
-        _isLoading = false;
-        return;
-      }
-
+      final videoListJson = await apiService.getVideos(page: 1);
       final newMovies = _mapJsonToMovies(videoListJson);
 
-      if (mounted) {
-        state = [...state, ...newMovies];
-        _currentPage++;
+      final newIds = newMovies.map((movie) => movie.playbackId).toSet();
+
+      if (!SetEquality().equals(currentIds, newIds)) {
+        if (mounted) {
+          state = newMovies;
+          hasNewContent = true;
+        }
       }
+      _currentPage = 2;
     } catch (e) {
       print(e);
     } finally {
       _isLoading = false;
     }
+
+    return hasNewContent;
   }
 
   List<Movie> _mapJsonToMovies(List<dynamic> jsonList) {
@@ -117,16 +126,16 @@ class ShortVideosNotifier extends StateNotifier<List<Movie>> {
         ));
       }
     }
-    return movies;
+    return movies.reversed.toList();
   }
 }
 
 final currentVideoControllerProvider =
-    StateProvider<VideoPlayerController?>((ref) => null);
+    StateProvider.autoDispose<VideoPlayerController?>((ref) => null);
 
-final filterVisibilityProvider = StateProvider<bool>((ref) => true);
+final filterVisibilityProvider = StateProvider.autoDispose<bool>((ref) => true);
 
-// --- UI ЧАСТЬ  ---
+// --- UI ЧАСТЬ ---
 void main() {
   runApp(
     const ProviderScope(
@@ -183,9 +192,10 @@ class _ShortsPageViewState extends ConsumerState<ShortsPageView> {
 
     final videoList = ref.read(shortVideosProvider);
 
-    if (newIndex >= videoList.length - 2) {
-      Future.microtask(
-          () => ref.read(shortVideosProvider.notifier).loadMoreVideos());
+    if (videoList.length <= 1) return;
+
+    if (newIndex == 0 || newIndex == videoList.length - 1) {
+      ref.read(shortVideosProvider.notifier).refresh();
     }
   }
 
@@ -202,27 +212,32 @@ class _ShortsPageViewState extends ConsumerState<ShortsPageView> {
       );
     }
 
-    return Scaffold(
-      body: PageView.builder(
-        controller: _pageController,
-        scrollDirection: Axis.vertical,
-        itemCount: videos.length,
-        onPageChanged: _onPageChanged,
-        itemBuilder: (context, index) {
-          final movie = videos[index];
+    return RefreshIndicator(
+      onRefresh: () => ref.read(shortVideosProvider.notifier).refresh(),
+      color: Colors.white,
+      backgroundColor: Colors.red,
+      child: Scaffold(
+        body: PageView.builder(
+          controller: _pageController,
+          scrollDirection: Axis.vertical,
+          itemCount: videos.length,
+          onPageChanged: _onPageChanged,
+          itemBuilder: (context, index) {
+            final movie = videos[index];
 
-          return ShortPlayerScreen(
-            movie: movie,
-            index: index,
-            isCurrent: index == _currentIndex,
-          );
-        },
+            return ShortPlayerScreen(
+              movie: movie,
+              index: index,
+              isCurrent: index == _currentIndex,
+            );
+          },
+        ),
       ),
     );
   }
 }
 
-// --- SHORT PLAYER SCREEN  ---
+// --- ЭКРАН ПЛЕЕРА---
 class ShortPlayerScreen extends ConsumerStatefulWidget {
   final Movie movie;
   final int index;

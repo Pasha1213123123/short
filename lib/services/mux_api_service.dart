@@ -14,7 +14,16 @@ class MuxApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data['data'] as List<dynamic>;
+        final videos = data['data'] as List<dynamic>;
+
+        if (videos.isNotEmpty) {
+          print('--- Mux API Response Sample ---');
+          print('Keys of the first video: ${(videos[0] as Map).keys.toList()}');
+          print('Full first video object: ${videos[0]}');
+          print('-----------------------------');
+        }
+
+        return videos;
       } else {
         throw Exception('Failed to load videos: ${response.body}');
       }

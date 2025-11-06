@@ -176,7 +176,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// --- ЭКРАН С ПРОКРУТКОЙ  ---
+// --- ЭКРАН С ПРОКРУТКОЙ (PageView) ---
 class ShortsPageView extends ConsumerStatefulWidget {
   const ShortsPageView({super.key});
   @override
@@ -257,7 +257,7 @@ class _ShortsPageViewState extends ConsumerState<ShortsPageView> {
   }
 }
 
-// --- ЭКРАН ПЛЕЕРА ---
+// --- ЭКРАН ПЛЕЕРА КОРОТКИХ ВИДЕО ---
 class ShortPlayerScreen extends ConsumerStatefulWidget {
   final Movie movie;
   final int index;
@@ -325,6 +325,7 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
   void _startVideo() {
     if (_videoController == null) return;
     _videoController!.play();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         ref.read(currentVideoControllerProvider.notifier).state =
@@ -333,9 +334,10 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
     });
   }
 
-  void _pauseVideo() {
+  Future<void> _pauseAndResetVideo() async {
     if (_videoController == null) return;
-    _videoController!.pause();
+    await _videoController!.pause();
+    await _videoController!.seekTo(Duration.zero);
   }
 
   @override
@@ -345,7 +347,7 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
       if (widget.isCurrent) {
         _startVideo();
       } else {
-        _pauseVideo();
+        _pauseAndResetVideo();
       }
     }
   }
@@ -365,6 +367,8 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
       }
     });
   }
+
+  // --- МЕТОДЫ ПОСТРОЕНИЯ UI (BUILD METHODS) ---
 
   @override
   Widget build(BuildContext context) {

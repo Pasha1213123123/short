@@ -176,7 +176,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// --- ЭКРАН С ПРОКРУТКОЙ (PageView) ---
+// --- ЭКРАН С ПРОКРУТКОЙ ---
 class ShortsPageView extends ConsumerStatefulWidget {
   const ShortsPageView({super.key});
   @override
@@ -279,6 +279,7 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
   String? _videoError;
   bool _isIconVisible = false;
   Timer? _iconVisibilityTimer;
+  bool _wasPlayingBeforeScrub = false;
 
   String _selectedGenre = 'All';
   final List<String> _genres = [
@@ -368,8 +369,6 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
     });
   }
 
-  // --- МЕТОДЫ ПОСТРОЕНИЯ UI (BUILD METHODS) ---
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -395,21 +394,7 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                if (_videoController != null)
-                  ValueListenableBuilder<VideoPlayerValue>(
-                    valueListenable: _videoController!,
-                    builder: (context, value, child) {
-                      double progress = 0.0;
-                      if (value.isInitialized &&
-                          value.duration.inMilliseconds > 0) {
-                        progress = value.position.inMilliseconds /
-                            value.duration.inMilliseconds;
-                      }
-                      return _buildProgressBar(progress);
-                    },
-                  )
-                else
-                  _buildProgressBar(0.0),
+                _buildInteractiveProgressBar(),
               ],
             ),
           ),
@@ -506,15 +491,55 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
     );
   }
 
-  Widget _buildProgressBar(double progress) {
-    if (_videoError != null) return const SizedBox.shrink();
-    return SizedBox(
-      height: 4,
-      child: LinearProgressIndicator(
-        value: progress,
-        backgroundColor: Colors.white.withOpacity(0.3),
-        valueColor: const AlwaysStoppedAnimation<Color>(Colors.red),
-      ),
+  Widget _buildInteractiveProgressBar() {
+    if (_videoController == null || !_videoController!.value.isInitialized) {
+      return const SizedBox(height: 18);
+    }
+
+    return ValueListenableBuilder<VideoPlayerValue>(
+      valueListenable: _videoController!,
+      builder: (context, value, child) {
+        final double max = value.duration.inMilliseconds.toDouble();
+        final double current = value.position.inMilliseconds.toDouble();
+
+        if (max.isNaN || max.isInfinite || max <= 0) {
+          return const SizedBox(height: 18);
+        }
+
+        return SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 2.0,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.0),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 14.0),
+            activeTrackColor: Colors.red,
+            inactiveTrackColor: Colors.white.withOpacity(0.3),
+            thumbColor: Colors.red,
+            overlayColor: Colors.red.withOpacity(0.2),
+          ),
+          child: Slider(
+            value: current.clamp(0.0, max),
+            min: 0.0,
+            max: max,
+            onChanged: (newValue) {
+              final newPosition = Duration(milliseconds: newValue.round());
+              _videoController!.seekTo(newPosition);
+            },
+            onChangeStart: (newValue) {
+              _iconVisibilityTimer?.cancel();
+              _wasPlayingBeforeScrub = _videoController!.value.isPlaying;
+              if (_wasPlayingBeforeScrub) {
+                _videoController!.pause();
+              }
+            },
+            onChangeEnd: (newValue) {
+              if (_wasPlayingBeforeScrub) {
+                _videoController!.play();
+              }
+              _toggleIconVisibility();
+            },
+          ),
+        );
+      },
     );
   }
 

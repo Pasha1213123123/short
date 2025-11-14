@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
@@ -57,21 +58,87 @@ class ShortVideosNotifier extends StateNotifier<List<Movie>> {
     fetchInitialVideos();
   }
 
+  Map<String, String> _extractMetadata(Map<String, dynamic> assetDetails) {
+    String title = '';
+    String description = '';
+    final String assetId = assetDetails['id'] ?? 'unknown';
+
+    final passthrough = assetDetails['passthrough'];
+    if (passthrough is String && passthrough.isNotEmpty) {
+      try {
+        final decodedPassthrough =
+            jsonDecode(passthrough) as Map<String, dynamic>;
+        title = decodedPassthrough['title'] as String? ?? '';
+        description = decodedPassthrough['description'] as String? ?? '';
+      } catch (e) {
+        print('Could not parse "passthrough" for asset $assetId: $e');
+      }
+    }
+
+    if (title.isEmpty) {
+      title = assetDetails['meta']?['title'] as String? ?? '';
+    }
+    if (description.isEmpty) {
+      description = assetDetails['meta']?['description'] as String? ?? '';
+    }
+
+    if (title.isEmpty) {
+      title = 'Untitled Video';
+    }
+    if (description.isEmpty) {
+      description = 'Asset ID: $assetId';
+    }
+
+    return {'title': title, 'description': description};
+  }
+
   Future<void> fetchInitialVideos() async {
+    if (_isLoading) return;
     _isLoading = true;
     final apiService = _ref.read(muxApiServiceProvider);
 
     try {
       final videoListJson = await apiService.getVideos(page: 1);
-      final movies = _mapJsonToMovies(videoListJson);
+
+      final List<Future<Map<String, dynamic>?>> detailFutures = [];
+      for (var videoData in videoListJson) {
+        final assetId = videoData['id'] as String?;
+        if (assetId != null) {
+          detailFutures.add(apiService.getAssetDetails(assetId));
+        }
+      }
+
+      final detailedAssets = await Future.wait(detailFutures);
+
+      final List<Movie> movies = [];
+      for (var assetDetails in detailedAssets) {
+        if (assetDetails == null) continue;
+
+        final playbackIds = assetDetails['playback_ids'] as List?;
+        if (playbackIds != null && playbackIds.isNotEmpty) {
+          final playbackId = playbackIds[0]['id'];
+
+          final metadata = _extractMetadata(assetDetails);
+
+          movies.add(Movie(
+            title: metadata['title']!,
+            description: metadata['description']!,
+            playbackId: playbackId,
+            rating: 4.5,
+            genres: ['Mux', 'API'],
+            imageUrl:
+                'https://image.mux.com/$playbackId/thumbnail.jpg?width=200',
+          ));
+        }
+      }
 
       if (mounted) {
-        state = movies;
+        state = movies.reversed.toList();
         _currentPage = 2;
       }
     } catch (e, stackTrace) {
-      FirebaseCrashlytics.instance
-          .recordError(e, stackTrace, reason: 'Failed to fetch initial videos');
+      FirebaseCrashlytics.instance.recordError(e, stackTrace,
+          reason: 'Failed to fetch initial videos with details');
     } finally {
       _isLoading = false;
     }
@@ -83,57 +150,16 @@ class ShortVideosNotifier extends StateNotifier<List<Movie>> {
 
   Future<bool> refresh() async {
     if (_isLoading) return false;
-    _isLoading = true;
-    bool hasNewContent = false;
-    final apiService = _ref.read(muxApiServiceProvider);
-
-    try {
-      final currentIds = state.map((movie) => movie.playbackId).toSet();
-      final videoListJson = await apiService.getVideos(page: 1);
-      final newMovies = _mapJsonToMovies(videoListJson);
-      final newIds = newMovies.map((movie) => movie.playbackId).toSet();
-
-      if (currentIds.length != newIds.length ||
-          !currentIds.containsAll(newIds)) {
-        if (mounted) {
-          state = newMovies;
-          hasNewContent = true;
-        }
-      }
-      _currentPage = 2;
-    } catch (e, stackTrace) {
-      FirebaseCrashlytics.instance
-          .recordError(e, stackTrace, reason: 'Failed to refresh videos');
-    } finally {
-      _isLoading = false;
-    }
-    return hasNewContent;
-  }
-
-  List<Movie> _mapJsonToMovies(List<dynamic> jsonList) {
-    final List<Movie> movies = [];
-    for (var videoData in jsonList) {
-      final playbackIds = videoData['playback_ids'] as List?;
-      if (playbackIds != null && playbackIds.isNotEmpty) {
-        final playbackId = playbackIds[0]['id'];
-        movies.add(Movie(
-          title: 'Video from Mux',
-          description: 'Asset ID: ${videoData['id']}',
-          playbackId: playbackId,
-          rating: 4.5,
-          genres: ['Mux', 'API'],
-          imageUrl: 'https://image.mux.com/$playbackId/thumbnail.jpg?width=200',
-        ));
-      }
-    }
-    return movies.reversed.toList();
+    await fetchInitialVideos();
+    return true;
   }
 }
 
 final currentVideoControllerProvider =
     StateProvider.autoDispose<VideoPlayerController?>((ref) => null);
 
-final filterVisibilityProvider = StateProvider.autoDispose<bool>((ref) => true);
+final filterVisibilityProvider =
+    StateProvider.autoDispose<bool>((ref) => false);
 
 // --- UI ЧАСТЬ ---
 Future<void> main() async {
@@ -176,7 +202,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// --- ЭКРАН С ПРОКРУТКОЙ ---
+// --- ЭКРАН С ПРОКРУТКОЙ (PageView) ---
 class ShortsPageView extends ConsumerStatefulWidget {
   const ShortsPageView({super.key});
   @override
@@ -277,7 +303,9 @@ class ShortPlayerScreen extends ConsumerStatefulWidget {
 class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
   VideoPlayerController? _videoController;
   String? _videoError;
-  bool _isIconVisible = false;
+  bool _areControlsVisible = true;
+  bool _isCenterIconVisible = false;
+  Timer? _controlsVisibilityTimer;
   Timer? _iconVisibilityTimer;
   bool _wasPlayingBeforeScrub = false;
 
@@ -297,6 +325,13 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
     _initializeController();
   }
 
+  @override
+  void dispose() {
+    _controlsVisibilityTimer?.cancel();
+    _iconVisibilityTimer?.cancel();
+    super.dispose();
+  }
+
   Future<void> _initializeController() async {
     try {
       final controller = await ref
@@ -309,6 +344,7 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
         });
         if (widget.isCurrent) {
           _startVideo();
+          _showControlsAndStartTimer();
         }
       }
     } catch (e, stackTrace) {
@@ -323,9 +359,12 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
     }
   }
 
+  // --- Методы управления состоянием плеера ---
+
   void _startVideo() {
     if (_videoController == null) return;
     _videoController!.play();
+    _startControlsTimeout();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -335,10 +374,23 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
     });
   }
 
+  void _playVideo() {
+    if (_videoController == null) return;
+    _videoController!.play();
+    _startControlsTimeout();
+  }
+
+  void _pauseVideo() {
+    if (_videoController == null) return;
+    _videoController!.pause();
+    _showControlsAndCancelTimer();
+  }
+
   Future<void> _pauseAndResetVideo() async {
     if (_videoController == null) return;
     await _videoController!.pause();
     await _videoController!.seekTo(Duration.zero);
+    _showControlsAndCancelTimer();
   }
 
   @override
@@ -353,73 +405,128 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
     }
   }
 
-  @override
-  void dispose() {
+  // --- Методы управления видимостью UI ---
+
+  void _toggleCenterIconVisibility() {
     _iconVisibilityTimer?.cancel();
-    super.dispose();
+    if (mounted) {
+      setState(() {
+        _isCenterIconVisible = true;
+      });
+      _iconVisibilityTimer = Timer(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          setState(() {
+            _isCenterIconVisible = false;
+          });
+        }
+      });
+    }
   }
 
-  void _toggleIconVisibility() {
-    setState(() => _isIconVisible = true);
-    _iconVisibilityTimer?.cancel();
-    _iconVisibilityTimer = Timer(const Duration(milliseconds: 500), () {
-      if (mounted) {
-        setState(() => _isIconVisible = false);
-      }
-    });
+  void _startControlsTimeout({Duration duration = const Duration(seconds: 3)}) {
+    _controlsVisibilityTimer?.cancel();
+    if (_videoController?.value.isPlaying ?? false) {
+      _controlsVisibilityTimer = Timer(duration, () {
+        if (mounted) {
+          setState(() {
+            _areControlsVisible = false;
+          });
+        }
+      });
+    }
   }
+
+  void _toggleControlsVisibility() {
+    _controlsVisibilityTimer?.cancel();
+    setState(() {
+      _areControlsVisible = !_areControlsVisible;
+    });
+    if (_areControlsVisible) {
+      _startControlsTimeout();
+    }
+  }
+
+  void _showControlsAndStartTimer() {
+    if (mounted) {
+      setState(() {
+        _areControlsVisible = true;
+      });
+      _startControlsTimeout();
+    }
+  }
+
+  void _showControlsAndCancelTimer() {
+    _controlsVisibilityTimer?.cancel();
+    if (mounted && !_areControlsVisible) {
+      setState(() {
+        _areControlsVisible = true;
+      });
+    }
+  }
+
+  // --- МЕТОДЫ ПОСТРОЕНИЯ UI (BUILD METHODS) ---
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
+        fit: StackFit.expand,
         children: [
           _buildBackgroundVideoPlayer(),
-          _buildGradientOverlay(),
-          _buildCenterControls(),
-          _buildFullScreenTapHandler(),
-          _buildTopBar(),
-          Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(child: _buildBottomInfoPanel()),
-                    _buildRightSideBar(),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _buildInteractiveProgressBar(),
-              ],
+          GestureDetector(
+            onTap: () {
+              if (_videoController == null ||
+                  !_videoController!.value.isInitialized) return;
+
+              _toggleCenterIconVisibility();
+
+              final isPlaying = _videoController!.value.isPlaying;
+              if (isPlaying) {
+                _pauseVideo();
+              } else {
+                if (mounted) {
+                  setState(() {
+                    _areControlsVisible = true;
+                  });
+                }
+                _videoController!.play();
+                _startControlsTimeout(duration: const Duration(seconds: 2));
+              }
+            },
+            child: Container(color: Colors.transparent),
+          ),
+          IgnorePointer(
+            child: AnimatedOpacity(
+              opacity: _areControlsVisible ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 250),
+              child: Stack(
+                children: [
+                  _buildGradientOverlay(),
+                  Positioned(
+                    left: 16,
+                    right: 90,
+                    bottom: 60,
+                    child: _buildBottomInfoPanel(),
+                  ),
+                ],
+              ),
             ),
           ),
+          _buildTopBar(),
+          Positioned(
+            right: 16,
+            bottom: 60,
+            child: _buildRightSideBar(),
+          ),
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: _buildInteractiveProgressBar(),
+          ),
+          _buildCenterControls(),
         ],
-      ),
-    );
-  }
-
-  Widget _buildFullScreenTapHandler() {
-    if (_videoError != null || _videoController == null)
-      return const SizedBox.shrink();
-
-    return Positioned.fill(
-      child: GestureDetector(
-        child: Container(color: Colors.transparent),
-        onTap: () {
-          _toggleIconVisibility();
-          setState(() {
-            if (_videoController!.value.isPlaying) {
-              _videoController!.pause();
-            } else {
-              _videoController!.play();
-            }
-          });
-        },
       ),
     );
   }
@@ -432,11 +539,11 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
         ? Icons.pause
         : Icons.play_arrow_rounded;
 
-    return Center(
-      child: AnimatedOpacity(
-        opacity: _isIconVisible ? 1.0 : 0.0,
-        duration: const Duration(milliseconds: 150),
-        child: IgnorePointer(
+    return IgnorePointer(
+      child: Center(
+        child: AnimatedOpacity(
+          opacity: _isCenterIconVisible ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 150),
           child: Icon(icon, size: 80, color: Colors.white.withOpacity(0.85)),
         ),
       ),
@@ -445,9 +552,9 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
 
   Widget _buildBackgroundVideoPlayer() {
     if (_videoError != null) {
-      return Container(
-        color: Colors.red[900]!.withOpacity(0.8),
-        child: Center(
+      return Center(
+        child: Container(
+          color: Colors.red[900]!.withOpacity(0.8),
           child: Padding(
             padding: const EdgeInsets.all(32.0),
             child: Text(_videoError!,
@@ -462,9 +569,9 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
     }
 
     if (_videoController == null || !_videoController!.value.isInitialized) {
-      return Container(
-        color: Colors.black,
-        child: Center(
+      return Center(
+        child: Container(
+          color: Colors.black,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -493,19 +600,16 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
 
   Widget _buildInteractiveProgressBar() {
     if (_videoController == null || !_videoController!.value.isInitialized) {
-      return const SizedBox(height: 18);
+      return const SizedBox(height: 48);
     }
-
     return ValueListenableBuilder<VideoPlayerValue>(
       valueListenable: _videoController!,
       builder: (context, value, child) {
         final double max = value.duration.inMilliseconds.toDouble();
         final double current = value.position.inMilliseconds.toDouble();
-
         if (max.isNaN || max.isInfinite || max <= 0) {
-          return const SizedBox(height: 18);
+          return const SizedBox(height: 48);
         }
-
         return SliderTheme(
           data: SliderTheme.of(context).copyWith(
             trackHeight: 2.0,
@@ -525,7 +629,7 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
               _videoController!.seekTo(newPosition);
             },
             onChangeStart: (newValue) {
-              _iconVisibilityTimer?.cancel();
+              _controlsVisibilityTimer?.cancel();
               _wasPlayingBeforeScrub = _videoController!.value.isPlaying;
               if (_wasPlayingBeforeScrub) {
                 _videoController!.pause();
@@ -535,7 +639,7 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
               if (_wasPlayingBeforeScrub) {
                 _videoController!.play();
               }
-              _toggleIconVisibility();
+              _startControlsTimeout();
             },
           ),
         );
@@ -574,7 +678,7 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
               const SizedBox(width: 16),
               Container(
                 decoration: BoxDecoration(
-                    color: showFilters ? Colors.black.withOpacity(0.5) : null,
+                    color: Colors.black.withOpacity(0.5),
                     borderRadius: BorderRadius.circular(8)),
                 child: IconButton(
                     icon: const Icon(Icons.menu, color: Colors.white),

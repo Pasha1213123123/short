@@ -97,8 +97,10 @@ class ShortVideosNotifier extends StateNotifier<List<Movie>> {
     _isLoading = true;
     final apiService = _ref.read(muxApiServiceProvider);
 
+    _currentPage = 1;
+
     try {
-      final videoListJson = await apiService.getVideos(page: 1);
+      final videoListJson = await apiService.getVideos(page: _currentPage);
 
       final List<Future<Map<String, dynamic>?>> detailFutures = [];
       for (var videoData in videoListJson) {
@@ -117,7 +119,6 @@ class ShortVideosNotifier extends StateNotifier<List<Movie>> {
         final playbackIds = assetDetails['playback_ids'] as List?;
         if (playbackIds != null && playbackIds.isNotEmpty) {
           final playbackId = playbackIds[0]['id'];
-
           final metadata = _extractMetadata(assetDetails);
 
           movies.add(Movie(
@@ -134,7 +135,7 @@ class ShortVideosNotifier extends StateNotifier<List<Movie>> {
 
       if (mounted) {
         state = movies.reversed.toList();
-        _currentPage = 2;
+        _currentPage++;
       }
     } catch (e, stackTrace) {
       FirebaseCrashlytics.instance.recordError(e, stackTrace,
@@ -145,7 +146,59 @@ class ShortVideosNotifier extends StateNotifier<List<Movie>> {
   }
 
   Future<void> loadMoreVideos() async {
-    // TODO: Implement loading of older videos when the database grows larger
+    if (_isLoading) return;
+    _isLoading = true;
+    final apiService = _ref.read(muxApiServiceProvider);
+
+    try {
+      final videoListJson = await apiService.getVideos(page: _currentPage);
+
+      if (videoListJson.isEmpty) {
+        _isLoading = false;
+        return;
+      }
+
+      final List<Future<Map<String, dynamic>?>> detailFutures = [];
+      for (var videoData in videoListJson) {
+        final assetId = videoData['id'] as String?;
+        if (assetId != null) {
+          detailFutures.add(apiService.getAssetDetails(assetId));
+        }
+      }
+
+      final detailedAssets = await Future.wait(detailFutures);
+      final List<Movie> newMovies = [];
+
+      for (var assetDetails in detailedAssets) {
+        if (assetDetails == null) continue;
+
+        final playbackIds = assetDetails['playback_ids'] as List?;
+        if (playbackIds != null && playbackIds.isNotEmpty) {
+          final playbackId = playbackIds[0]['id'];
+          final metadata = _extractMetadata(assetDetails);
+
+          newMovies.add(Movie(
+            title: metadata['title']!,
+            description: metadata['description']!,
+            playbackId: playbackId,
+            rating: 4.5,
+            genres: ['Mux', 'API'],
+            imageUrl:
+                'https://image.mux.com/$playbackId/thumbnail.jpg?width=200',
+          ));
+        }
+      }
+
+      if (mounted) {
+        state = [...state, ...newMovies.reversed.toList()];
+        _currentPage++;
+      }
+    } catch (e, stackTrace) {
+      FirebaseCrashlytics.instance
+          .recordError(e, stackTrace, reason: 'Failed to load more videos');
+    } finally {
+      _isLoading = false;
+    }
   }
 
   Future<bool> refresh() async {
@@ -243,7 +296,7 @@ class _ShortsPageViewState extends ConsumerState<ShortsPageView> {
     ref.read(videoCacheManagerProvider).preload(newIndex, videoList);
 
     if (newIndex == videoList.length - 1) {
-      ref.read(shortVideosProvider.notifier).refresh();
+      ref.read(shortVideosProvider.notifier).loadMoreVideos();
     }
   }
 

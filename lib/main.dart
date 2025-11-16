@@ -824,12 +824,15 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
           widget.movie.title,
           style: const TextStyle(
               fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 8),
         Text(
           widget.movie.description,
           style: TextStyle(fontSize: 16, color: Colors.white.withOpacity(0.8)),
-          maxLines: 2,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 12),
         Row(

@@ -1,0 +1,19 @@
+{
+    "appTitle": "Short Movie Player",
+    "uploadVideo": "Upload Video",
+    "pickVideo": "Tap to pick video",
+    "videoSelected": "Video selected",
+    "titleLabel": "Title",
+    "descriptionLabel": "Description",
+    "publishButton": "PUBLISH",
+    "uploading": "Uploading...",
+    "successMessage": "Video uploaded! It will appear in the feed shortly.",
+    "errorAccessGallery": "Error accessing gallery",
+    "errorEnterTitle": "Please enter a title",
+    "statusPreparing": "Preparing upload...",
+    "statusSending": "Sending video to server...",
+    "statusProcessing": "Upload complete! Processing...",
+    "like": "Like",
+    "save": "Save",
+    "share": "Share"
+}

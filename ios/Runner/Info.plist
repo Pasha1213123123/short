@@ -47,5 +47,11 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Нам нужен доступ к галерее, чтобы вы могли загружать видео.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Нам нужен доступ к камере, чтобы вы могли снимать видео.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Нам нужен доступ к микрофону для записи звука в видео.</string>
 </dict>
 </plist>

@@ -1,0 +1,19 @@
+{
+	"appTitle": "Short Movie Player",
+	"uploadVideo": "Завантажити відео",
+	"pickVideo": "Натисніть, щоб вибрати відео",
+	"videoSelected": "Відео вибрано",
+	"titleLabel": "Назва",
+	"descriptionLabel": "Опис",
+	"publishButton": "ОПУБЛІКУВАТИ",
+	"uploading": "Завантаження...",
+	"successMessage": "Відео завантажено! Воно з'явиться у стрічці за хвилину.",
+	"errorAccessGallery": "Помилка доступу до галереї",
+	"errorEnterTitle": "Будь ласка, введіть назву",
+	"statusPreparing": "Підготовка до завантаження...",
+	"statusSending": "Відправка відео на сервер...",
+	"statusProcessing": "Завантаження завершено! Обробка...",
+	"like": "Вподобати",
+	"save": "Зберегти",
+	"share": "Поділитися"
+}

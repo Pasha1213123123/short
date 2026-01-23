@@ -1,0 +1,19 @@
+{
+    "appTitle": "Short Movie Player",
+    "uploadVideo": "Загрузить видео",
+    "pickVideo": "Нажмите, чтобы выбрать видео",
+    "videoSelected": "Видео выбрано",
+    "titleLabel": "Название",
+    "descriptionLabel": "Описание",
+    "publishButton": "ОПУБЛИКОВАТЬ",
+    "uploading": "Загрузка...",
+    "successMessage": "Видео загружено! Оно появится в ленте через минуту.",
+    "errorAccessGallery": "Ошибка доступа к галерее",
+    "errorEnterTitle": "Пожалуйста, введите название",
+    "statusPreparing": "Подготовка к загрузке...",
+    "statusSending": "Отправка видео на сервер...",
+    "statusProcessing": "Загрузка завершена! Обработка...",
+    "like": "Нравится",
+    "save": "Сохр.",
+    "share": "Поделиться"
+}

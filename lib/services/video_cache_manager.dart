@@ -4,7 +4,9 @@ import 'dart:collection';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 
-import '../main.dart';
+import '../providers.dart';
+import '../utils/error_messages.dart';
+import '../utils/logger.dart';
 
 final videoCacheManagerProvider = Provider<VideoCacheManager>((ref) {
   final manager = VideoCacheManager();
@@ -20,7 +22,7 @@ class _PreloadTask {
 }
 
 class VideoCacheManager {
-  static const int _maxCacheSize = 5;
+  int _maxCacheSize = 5;
   static const int _maxConcurrentPreloads = 1;
 
   final Map<String, VideoPlayerController> _cache = {};
@@ -32,6 +34,17 @@ class VideoCacheManager {
   final Set<String> _preloading = {};
   bool _isProcessingQueue = false;
 
+  void setMaxCacheSize(int newSize) {
+    if (newSize > 0 && newSize != _maxCacheSize) {
+      _maxCacheSize = newSize;
+
+      while (_cache.length > _maxCacheSize) {
+        _cleanupLRU();
+      }
+      logger.i('Размер кэша видео изменен на $_maxCacheSize');
+    }
+  }
+
   Future<VideoPlayerController> getOrCreateController(Movie movie) async {
     if (movie.playbackId == null) {
       throw Exception("Movie has no playbackId");
@@ -40,10 +53,12 @@ class VideoCacheManager {
 
     if (_cache.containsKey(playbackId)) {
       _accessTimes[playbackId] = DateTime.now();
+      logger.d('Cache hit (взято из кэша) для $playbackId');
       return _cache[playbackId]!;
     }
 
     if (_initializing.containsKey(playbackId)) {
+      logger.d('Ожидание инициализации $playbackId');
       return _initializing[playbackId]!.future;
     }
 
@@ -55,6 +70,7 @@ class VideoCacheManager {
         _cleanupLRU();
       }
 
+      logger.i('Инициализация контроллера для $playbackId');
       final controller = VideoPlayerController.networkUrl(movie.videoUrl);
       await controller.initialize();
       controller.setLooping(true);
@@ -64,9 +80,11 @@ class VideoCacheManager {
 
       completer.complete(controller);
       return controller;
-    } catch (e) {
+    } catch (e, stackTrace) {
+      logger.e(AppErrorMessages.cacheInitError,
+          error: e, stackTrace: stackTrace);
       completer.completeError(e);
-      throw Exception("Failed to initialize video controller: $e");
+      throw Exception("${AppErrorMessages.cacheInitError}: $e");
     } finally {
       _initializing.remove(playbackId);
     }
@@ -121,7 +139,7 @@ class VideoCacheManager {
         try {
           await getOrCreateController(task.movie);
         } catch (e) {
-          print('Preload failed for ${playbackId}: $e');
+          logger.w('Не удалось предзагрузить (preload) $playbackId: $e');
         } finally {
           _preloading.remove(playbackId);
         }
@@ -142,7 +160,7 @@ class VideoCacheManager {
     final controllerToDispose = _cache.remove(oldestEntry.key);
     controllerToDispose?.dispose();
     _accessTimes.remove(oldestEntry.key);
-    print("Cache cleanup: removed controller for ${oldestEntry.key}");
+    logger.d("Очистка кэша: удален контроллер для ${oldestEntry.key}");
   }
 
   @override

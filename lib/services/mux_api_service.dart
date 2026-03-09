@@ -85,6 +85,7 @@ class MuxApiService {
   Future<String?> createDirectUploadUrl({
     required String title,
     required String description,
+    List<String> genres = const [],
   }) async {
     return _executeWithRetry(() async {
       final url = Uri.parse('${MuxConfig.videoApiUrl}/uploads');
@@ -92,6 +93,7 @@ class MuxApiService {
       final passthroughData = jsonEncode({
         'title': title,
         'description': description,
+        'genres': genres,
       });
 
       final body = jsonEncode({

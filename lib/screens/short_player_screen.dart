@@ -6,6 +6,7 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:video_player/video_player.dart';
 
 import '../l10n/app_localizations.dart';
@@ -20,12 +21,14 @@ class ShortPlayerScreen extends ConsumerStatefulWidget {
   final Movie movie;
   final int index;
   final bool isCurrent;
+  final VoidCallback? onVideoFinished;
 
   const ShortPlayerScreen({
     super.key,
     required this.movie,
     required this.index,
     required this.isCurrent,
+    this.onVideoFinished,
   });
 
   @override
@@ -49,6 +52,7 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
 
   @override
   void dispose() {
+    _videoController?.removeListener(_videoListener);
     _controlsVisibilityTimer?.cancel();
     _iconVisibilityTimer?.cancel();
     if (widget.isCurrent) {
@@ -61,6 +65,18 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
     super.dispose();
   }
 
+  void _videoListener() {
+    if (!mounted || _videoController == null) return;
+    
+    final value = _videoController!.value;
+    if (value.position >= value.duration && !value.isPlaying && value.isInitialized) {
+      final isAutoplayEnabled = ref.read(autoplayProvider);
+      if (isAutoplayEnabled) {
+        widget.onVideoFinished?.call();
+      }
+    }
+  }
+
   Future<void> _initializeController() async {
     try {
       final controller = await ref
@@ -68,6 +84,12 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
           .getOrCreateController(widget.movie);
       if (mounted) {
         setState(() => _videoController = controller);
+        
+        // Настройка зацикливания в зависимости от Autoplay
+        final isAutoplayEnabled = ref.read(autoplayProvider);
+        _videoController!.setLooping(!isAutoplayEnabled);
+        _videoController!.addListener(_videoListener);
+
         if (widget.isCurrent) {
           _startVideo();
           _showControlsAndStartTimer();
@@ -323,128 +345,99 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
   }
 
   Widget _buildRightSideBar() {
-    final loc = AppLocalizations.of(context)!;
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        _buildLikeButton(loc),
-        const SizedBox(height: 20),
-        _buildBookmarkButton(loc),
-        const SizedBox(height: 20),
-        _buildShareButton(loc),
-      ],
-    );
+    return _buildUnifiedFab();
   }
 
-  Widget _buildLikeButton(AppLocalizations loc) {
+  Widget _buildUnifiedFab() {
+    final loc = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
     final videoId = widget.movie.playbackId ?? 'unknown';
+
+    // Состояния для Like и Bookmark
     final likedVideos = ref.watch(likedVideosProvider);
     final isLiked = likedVideos.contains(videoId);
-    final theme = Theme.of(context);
-
-    return InkWell(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        ref.read(likedVideosProvider.notifier).toggle(videoId);
-        FirebaseAnalytics.instance.logEvent(
-          name: isLiked ? 'video_unliked' : 'video_liked',
-          parameters: {'video_id': videoId},
-        );
-      },
-      child: Semantics(
-        button: true,
-        label: loc.like,
-        child: Column(
-          children: [
-            Icon(isLiked ? Icons.favorite : Icons.favorite_border,
-                color: isLiked ? theme.colorScheme.primary : Colors.white,
-                size: 30),
-            const SizedBox(height: 4),
-            Text(loc.like,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBookmarkButton(AppLocalizations loc) {
-    final videoId = widget.movie.playbackId ?? 'unknown';
     final bookmarkedVideos = ref.watch(bookmarkedVideosProvider);
     final isBookmarked = bookmarkedVideos.contains(videoId);
 
-    final theme = Theme.of(context);
     final warningColor =
         theme.extension<AppColorsExtension>()?.warning ?? Colors.amber;
 
-    return InkWell(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        ref.read(bookmarkedVideosProvider.notifier).toggle(videoId);
-        FirebaseAnalytics.instance.logEvent(
-          name: isBookmarked ? 'video_unsaved' : 'video_saved',
-          parameters: {'video_id': videoId},
-        );
-      },
-      child: Semantics(
-        button: true,
-        label: loc.save,
-        child: Column(
-          children: [
-            Icon(isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-                color: isBookmarked ? warningColor : Colors.white, size: 30),
-            const SizedBox(height: 4),
-            Text(loc.save,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold)),
-          ],
+    return SpeedDial(
+      icon: Icons.more_vert,
+      activeIcon: Icons.close,
+      backgroundColor: Colors.black54,
+      foregroundColor: Colors.white,
+      activeBackgroundColor: theme.colorScheme.primary,
+      activeForegroundColor: Colors.white,
+      visible: true,
+      closeManually: false,
+      renderOverlay: false,
+      curve: Curves.bounceIn,
+      spacing: 12,
+      spaceBetweenChildren: 12,
+      children: [
+        // Like
+        SpeedDialChild(
+          child: Icon(isLiked ? Icons.favorite : Icons.favorite_border,
+              color: isLiked ? theme.colorScheme.primary : Colors.white),
+          backgroundColor: Colors.black87,
+          label: loc.like,
+          labelStyle: const TextStyle(fontSize: 14.0, color: Colors.white),
+          labelBackgroundColor: Colors.black54,
+          onTap: () {
+            HapticFeedback.lightImpact();
+            ref.read(likedVideosProvider.notifier).toggle(videoId);
+            FirebaseAnalytics.instance.logEvent(
+              name: isLiked ? 'video_unliked' : 'video_liked',
+              parameters: {'video_id': videoId},
+            );
+          },
         ),
-      ),
-    );
-  }
-
-  Widget _buildShareButton(AppLocalizations loc) {
-    final theme = Theme.of(context);
-    return InkWell(
-      onTap: () async {
-        HapticFeedback.mediumImpact();
-        FirebaseAnalytics.instance.logEvent(
-          name: 'video_shared',
-          parameters: {'video_id': widget.movie.playbackId ?? 'unknown'},
-        );
-        final String url = widget.movie.videoUrl.toString();
-        await Clipboard.setData(ClipboardData(text: url));
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text("Ссылка на видео скопирована"),
-              duration: AppConstants.snackBarDuration,
-              backgroundColor: theme.colorScheme.secondary,
-            ),
-          );
-        }
-      },
-      child: Semantics(
-        button: true,
-        label: loc.share,
-        child: Column(
-          children: [
-            const Icon(Icons.share, color: Colors.white, size: 30),
-            const SizedBox(height: 4),
-            Text(loc.share,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold)),
-          ],
+        // Favorite
+        SpeedDialChild(
+          child: Icon(isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+              color: isBookmarked ? warningColor : Colors.white),
+          backgroundColor: Colors.black87,
+          label: loc.save,
+          labelStyle: const TextStyle(fontSize: 14.0, color: Colors.white),
+          labelBackgroundColor: Colors.black54,
+          onTap: () {
+            HapticFeedback.lightImpact();
+            ref.read(bookmarkedVideosProvider.notifier).toggle(videoId);
+            FirebaseAnalytics.instance.logEvent(
+              name: isBookmarked ? 'video_unsaved' : 'video_saved',
+              parameters: {'video_id': videoId},
+            );
+          },
         ),
-      ),
+        // Share
+        SpeedDialChild(
+          child: const Icon(Icons.share, color: Colors.white),
+          backgroundColor: Colors.black87,
+          label: loc.share,
+          labelStyle: const TextStyle(fontSize: 14.0, color: Colors.white),
+          labelBackgroundColor: Colors.black54,
+          onTap: () async {
+            HapticFeedback.mediumImpact();
+            FirebaseAnalytics.instance.logEvent(
+              name: 'video_shared',
+              parameters: {'video_id': videoId},
+            );
+            final String url = widget.movie.videoUrl.toString();
+            await Clipboard.setData(ClipboardData(text: url));
+
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text("Ссылка на видео скопирована"),
+                  duration: AppConstants.snackBarDuration,
+                  backgroundColor: theme.colorScheme.secondary,
+                ),
+              );
+            }
+          },
+        ),
+      ],
     );
   }
 

@@ -170,34 +170,6 @@ class _ShortsPageViewState extends ConsumerState<ShortsPageView> {
     // Основной контент
     return Scaffold(
       extendBodyBehindAppBar: true,
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 60.0),
-        child: FloatingActionButton(
-          heroTag: 'upload_fab',
-          tooltip: loc.uploadVideo,
-          onPressed: () async {
-            final currentController = ref.read(currentVideoControllerProvider);
-            if (currentController != null &&
-                currentController.value.isPlaying) {
-              await currentController.pause();
-            }
-            if (!context.mounted) return;
-
-            await Navigator.of(context).push(
-              MaterialPageRoute(builder: (context) => const UploadScreen()),
-            );
-
-            await Future.delayed(AppConstants.navigationDelay);
-            final freshController = ref.read(currentVideoControllerProvider);
-            if (freshController != null && !freshController.value.isPlaying) {
-              await freshController.play();
-            }
-          },
-          backgroundColor: theme.colorScheme.surface,
-          child: Icon(Icons.add, color: theme.colorScheme.onSurface, size: 30),
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endDocked,
       body: RefreshIndicator(
         onRefresh: () => ref.read(shortVideosProvider.notifier).refresh(),
         color: theme.colorScheme.onSurface,
@@ -215,6 +187,14 @@ class _ShortsPageViewState extends ConsumerState<ShortsPageView> {
                   movie: filteredVideos[index],
                   index: index,
                   isCurrent: index == _currentIndex,
+                  onVideoFinished: () {
+                    if (index < filteredVideos.length - 1) {
+                      _pageController.nextPage(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                      );
+                    }
+                  },
                 );
               },
             ),
@@ -228,7 +208,7 @@ class _ShortsPageViewState extends ConsumerState<ShortsPageView> {
   Widget _buildTopBar(BuildContext context, WidgetRef ref) {
     final showFilters = ref.watch(filterVisibilityProvider);
     final selectedGenre = ref.watch(selectedGenreProvider);
-    const genres = ['All', 'Action', 'Adventure', 'Comedy', 'Drama', 'Horror'];
+    final genres = ref.watch(availableGenresProvider);
     final theme = Theme.of(context);
 
     final overlayColor = theme.colorScheme.surface.withOpacity(0.6);

@@ -22,6 +22,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
 
   final _titleController = TextEditingController();
   final _descController = TextEditingController();
+  final List<String> _selectedGenres = [];
 
   bool _isUploading = false;
   String? _statusMessage;
@@ -76,6 +77,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
       final uploadUrl = await apiService.createDirectUploadUrl(
         title: _titleController.text,
         description: _descController.text,
+        genres: _selectedGenres,
       );
 
       if (uploadUrl != null) {
@@ -181,6 +183,11 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
               maxLines: 3,
               enabled: !_isUploading,
             ),
+            const SizedBox(height: 16),
+            const Text("Select Genres:",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 8),
+            _buildGenreSelection(),
             const SizedBox(height: 24),
             if (_statusMessage != null)
               Padding(
@@ -219,6 +226,42 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildGenreSelection() {
+    final allGenres = ref.watch(availableGenresProvider);
+    // Исключаем 'All' и дефолтные 'Mux', 'API', если они не нужны как выбор
+    final genresToSelect = allGenres
+        .where((g) => g != 'All' && g != 'Mux' && g != 'API')
+        .toList();
+
+    // Если список пуст (например, при первом запуске), добавим дефолтные для выбора
+    if (genresToSelect.isEmpty) {
+      genresToSelect.addAll(['Action', 'Comedy', 'Drama', 'Horror', 'Sci-Fi']);
+    }
+
+    return Wrap(
+      spacing: 8.0,
+      runSpacing: 4.0,
+      children: genresToSelect.map((genre) {
+        final isSelected = _selectedGenres.contains(genre);
+        return FilterChip(
+          label: Text(genre),
+          selected: isSelected,
+          onSelected: _isUploading
+              ? null
+              : (bool selected) {
+                  setState(() {
+                    if (selected) {
+                      _selectedGenres.add(genre);
+                    } else {
+                      _selectedGenres.remove(genre);
+                    }
+                  });
+                },
+        );
+      }).toList(),
     );
   }
 }

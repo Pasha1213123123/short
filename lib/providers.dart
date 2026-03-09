@@ -61,6 +61,38 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
   }
 }
 
+// --- Провайдер Autoplay ---
+final autoplayProvider = StateNotifierProvider<AutoplayNotifier, bool>((ref) {
+  return AutoplayNotifier();
+});
+
+class AutoplayNotifier extends StateNotifier<bool> {
+  static const String _autoplayKey = 'app_autoplay_enabled';
+
+  AutoplayNotifier() : super(true) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      state = prefs.getBool(_autoplayKey) ?? true;
+    } catch (e) {
+      logger.e('Error loading autoplay setting', error: e);
+    }
+  }
+
+  Future<void> setAutoplay(bool value) async {
+    state = value;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_autoplayKey, value);
+    } catch (e) {
+      logger.e('Error saving autoplay setting', error: e);
+    }
+  }
+}
+
 final shortVideosProvider =
     StateNotifierProvider.autoDispose<ShortVideosNotifier, List<Movie>>((ref) {
   return ShortVideosNotifier(ref);
@@ -136,9 +168,10 @@ class ShortVideosNotifier extends StateNotifier<List<Movie>> {
     await fetchInitialVideos();
   }
 
-  Map<String, String> _extractMetadata(Map<String, dynamic> assetDetails) {
+  Map<String, dynamic> _extractMetadata(Map<String, dynamic> assetDetails) {
     String title = '';
     String description = '';
+    List<String> genres = [];
     final String assetId = assetDetails['id'] ?? 'unknown';
 
     final passthrough = assetDetails['passthrough'];
@@ -148,6 +181,10 @@ class ShortVideosNotifier extends StateNotifier<List<Movie>> {
             jsonDecode(passthrough) as Map<String, dynamic>;
         title = decodedPassthrough['title'] as String? ?? '';
         description = decodedPassthrough['description'] as String? ?? '';
+        final rawGenres = decodedPassthrough['genres'];
+        if (rawGenres is List) {
+          genres = rawGenres.map((e) => e.toString()).toList();
+        }
       } catch (e) {
         logger.w('Could not parse "passthrough" for asset $assetId', error: e);
       }
@@ -159,7 +196,11 @@ class ShortVideosNotifier extends StateNotifier<List<Movie>> {
     if (title.isEmpty) title = 'Untitled Video';
     if (description.isEmpty) description = 'Asset ID: $assetId';
 
-    return {'title': title, 'description': description};
+    return {
+      'title': title,
+      'description': description,
+      'genres': genres.isEmpty ? ['Mux', 'API'] : genres,
+    };
   }
 
   Future<void> _loadFromCache() async {
@@ -227,7 +268,7 @@ class ShortVideosNotifier extends StateNotifier<List<Movie>> {
             description: metadata['description']!,
             playbackId: playbackId,
             rating: 4.5,
-            genres: ['Mux', 'API'],
+            genres: metadata['genres'] as List<String>,
             imageUrl:
                 'https://image.mux.com/$playbackId/thumbnail.jpg?width=200',
           ));
@@ -333,6 +374,19 @@ enum FeedStatus { initial, loading, success, error, empty }
 final feedStatusProvider =
     StateProvider<FeedStatus>((ref) => FeedStatus.initial);
 final selectedGenreProvider = StateProvider.autoDispose<String>((ref) => 'All');
+
+final availableGenresProvider = Provider.autoDispose<List<String>>((ref) {
+  final allVideos = ref.watch(shortVideosProvider);
+  final Set<String> genres = {'All'};
+  for (var video in allVideos) {
+    genres.addAll(video.genres);
+  }
+  final list = genres.toList();
+  // Сортировка: 'All' всегда первый, остальные по алфавиту
+  final all = list.removeAt(list.indexOf('All'));
+  list.sort();
+  return [all, ...list];
+});
 
 final filteredVideosProvider = Provider.autoDispose<List<Movie>>((ref) {
   final allVideos = ref.watch(shortVideosProvider);

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
 import '../providers.dart';
+import '../utils/constants.dart';
+import 'upload_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -67,9 +69,11 @@ class SettingsScreen extends ConsumerWidget {
               "Start videos automatically",
               style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
             ),
-            value: true,
+            value: ref.watch(autoplayProvider),
             activeThumbColor: colorScheme.primary,
-            onChanged: (val) {},
+            onChanged: (val) {
+              ref.read(autoplayProvider.notifier).setAutoplay(val);
+            },
           ),
           SwitchListTile(
             title: const Text("Haptic Feedback"),
@@ -78,6 +82,31 @@ class SettingsScreen extends ConsumerWidget {
             onChanged: (val) {},
           ),
           const Divider(),
+          ListTile(
+            leading: Icon(Icons.video_call, color: colorScheme.primary),
+            title: Text(loc.uploadVideo),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              final currentController =
+                  ref.read(currentVideoControllerProvider);
+              if (currentController != null &&
+                  currentController.value.isPlaying) {
+                await currentController.pause();
+              }
+
+              if (!context.mounted) return;
+
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => const UploadScreen()),
+              );
+
+              await Future.delayed(AppConstants.navigationDelay);
+              final freshController = ref.read(currentVideoControllerProvider);
+              if (freshController != null && !freshController.value.isPlaying) {
+                await freshController.play();
+              }
+            },
+          ),
           ListTile(
             title: const Text("App Version"),
             trailing: Text(

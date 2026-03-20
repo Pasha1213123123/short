@@ -43,10 +43,12 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
   Timer? _controlsVisibilityTimer;
   Timer? _iconVisibilityTimer;
   bool _wasPlayingBeforeScrub = false;
+  late final FirebaseCrashlytics _crashlytics;
 
   @override
   void initState() {
     super.initState();
+    _crashlytics = ref.read(firebaseCrashlyticsProvider);
     _initializeController();
   }
 
@@ -100,7 +102,7 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
         setState(() => _videoError = "Error loading video:\n${e.toString()}");
       logger.e('Failed to initialize video controller',
           error: e, stackTrace: stackTrace);
-      FirebaseCrashlytics.instance
+      _crashlytics
           .recordError(e, stackTrace, reason: 'Video Init Failed');
     }
   }
@@ -182,6 +184,22 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<bool>(isAdShowingProvider, (previous, isAdShowing) {
+      if (isAdShowing) {
+        if (_videoController?.value.isPlaying ?? false) {
+          _videoController?.pause();
+        }
+      } else {
+        // If ad is closed and this video is the current one, resume (if autoplay is needed or previously playing)
+        if (widget.isCurrent && mounted) {
+           final autoplay = ref.read(autoplayProvider);
+           if (autoplay) {
+              _startVideo();
+           }
+        }
+      }
+    });
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -213,16 +231,16 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
                   Positioned(
                     left: 16,
                     right: 90,
-                    bottom: 60,
+                    bottom: 60 + MediaQuery.of(context).padding.bottom,
                     child: _buildBottomInfoPanel(),
                   ),
                 ],
               ),
             ),
           ),
-          Positioned(right: 16, bottom: 60, child: _buildRightSideBar()),
+          Positioned(right: 16, bottom: 60 + MediaQuery.of(context).padding.bottom, child: _buildRightSideBar()),
           Positioned(
-              bottom: 0,
+              bottom: MediaQuery.of(context).padding.bottom,
               left: 0,
               right: 0,
               child: _buildInteractiveProgressBar()),
@@ -387,7 +405,7 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
           onTap: () {
             HapticFeedback.lightImpact();
             ref.read(likedVideosProvider.notifier).toggle(videoId);
-            FirebaseAnalytics.instance.logEvent(
+            ref.read(firebaseAnalyticsProvider).logEvent(
               name: isLiked ? 'video_unliked' : 'video_liked',
               parameters: {'video_id': videoId},
             );
@@ -404,7 +422,7 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
           onTap: () {
             HapticFeedback.lightImpact();
             ref.read(bookmarkedVideosProvider.notifier).toggle(videoId);
-            FirebaseAnalytics.instance.logEvent(
+            ref.read(firebaseAnalyticsProvider).logEvent(
               name: isBookmarked ? 'video_unsaved' : 'video_saved',
               parameters: {'video_id': videoId},
             );
@@ -419,7 +437,7 @@ class _ShortPlayerScreenState extends ConsumerState<ShortPlayerScreen> {
           labelBackgroundColor: Colors.black54,
           onTap: () async {
             HapticFeedback.mediumImpact();
-            FirebaseAnalytics.instance.logEvent(
+            ref.read(firebaseAnalyticsProvider).logEvent(
               name: 'video_shared',
               parameters: {'video_id': videoId},
             );

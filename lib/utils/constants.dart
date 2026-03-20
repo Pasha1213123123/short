@@ -6,4 +6,15 @@ class AppConstants {
   static const Duration navigationDelay = Duration(milliseconds: 100);
 
   static const Duration snackBarDuration = Duration(milliseconds: 500);
+
+  static const List<String> defaultGenres = [
+    'Action',
+    'Comedy',
+    'Drama',
+    'Horror',
+    'Sci-Fi',
+    'Adventure',
+    'Music',
+    'Sport'
+  ];
 }

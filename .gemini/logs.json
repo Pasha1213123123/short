@@ -1,0 +1,135 @@
+[
+  {
+    "sessionId": "a2934866-e7bc-48da-97e5-ff8a5e97bff1",
+    "messageId": 0,
+    "type": "user",
+    "message": "подскажи как установить gemini на пк",
+    "timestamp": "2026-03-09T17:52:29.979Z"
+  },
+  {
+    "sessionId": "a2934866-e7bc-48da-97e5-ff8a5e97bff1",
+    "messageId": 1,
+    "type": "user",
+    "message": "посмтри вот тут какой у меня ключ и тд https://aistudio.google.com/app/api-keys?project=gen-lang-client-0432173615",
+    "timestamp": "2026-03-09T17:56:58.075Z"
+  },
+  {
+    "sessionId": "a2934866-e7bc-48da-97e5-ff8a5e97bff1",
+    "messageId": 2,
+    "type": "user",
+    "message": "API key details\nAPI Key\nAIzaSyCSsPenLN5rej2hAJ--MLydXrQ9viyejyE\nName\nGemini API Key\nProject name\nprojects/526603864588\nProject number\n526603864588",
+    "timestamp": "2026-03-09T17:58:38.119Z"
+  },
+  {
+    "sessionId": "a2934866-e7bc-48da-97e5-ff8a5e97bff1",
+    "messageId": 3,
+    "type": "user",
+    "message": "я тебе доверяю вствь Environment]::SetEnvironmentVariable(\"GEMINI_API_KEY\", \"НОВЫЙ_КЛЮЧ\", \"User\") суда полностью что надо мне написать в терминал",
+    "timestamp": "2026-03-09T17:59:48.230Z"
+  },
+  {
+    "sessionId": "a2934866-e7bc-48da-97e5-ff8a5e97bff1",
+    "messageId": 4,
+    "type": "user",
+    "message": "C:\\Users\\budve>[Environment]::SetEnvironmentVariable(\"GEMINI_API_KEY\", \"AIzaSyCSsPenLN5rej2hAJ--MLydXrQ9viyejyE\", \"User\")\nСинтаксическая ошибка в имени файла, имени папки или метке тома.",
+    "timestamp": "2026-03-09T18:01:39.294Z"
+  },
+  {
+    "sessionId": "0e9049f5-8aad-43fb-8aec-2c06ff2f02cb",
+    "messageId": 0,
+    "type": "user",
+    "message": "сейчас мы будем работь над",
+    "timestamp": "2026-03-09T18:07:43.495Z"
+  },
+  {
+    "sessionId": "0e9049f5-8aad-43fb-8aec-2c06ff2f02cb",
+    "messageId": 1,
+    "type": "user",
+    "message": "сейчас мы буедм работать над этим проэктом, твоя задача не перпеисывать его заногого, а дабовлять фишки которое я дам в задании или перепеисывать \"только те части в которыйх есть ошибки или их надо изменить\" другое \"трогать нельяза\" это правило для этого чата",
+    "timestamp": "2026-03-09T18:09:23.659Z"
+  },
+  {
+    "sessionId": "0e9049f5-8aad-43fb-8aec-2c06ff2f02cb",
+    "messageId": 2,
+    "type": "user",
+    "message": "теперь твоя задача в папке докс создать еще одну папку с назаванием анализ, в ней еще одна папка с названием мои промнты название папок естествено на английском, в папке анализ будет хрониться все основные файл и твои текстовые отвты, в папке мои промты ты будешь писать отчет по изменениям в коде и что ты сделал это должен быть как отечет после каждого задания которое меняет структуру файла или файлов, или меняет содержимое файла",
+    "timestamp": "2026-03-09T18:12:23.801Z"
+  },
+  {
+    "sessionId": "0e9049f5-8aad-43fb-8aec-2c06ff2f02cb",
+    "messageId": 3,
+    "type": "user",
+    "message": "в папке докс есть три файла проанализируй их и составь план действий и зпиши это в мб файл в папке анализ",
+    "timestamp": "2026-03-09T18:16:18.478Z"
+  },
+  {
+    "sessionId": "0e9049f5-8aad-43fb-8aec-2c06ff2f02cb",
+    "messageId": 4,
+    "type": "user",
+    "message": "надо написать максимально подробно что ты будешь делать, давай сделаем по другому сейчас написши один план только для первой задачиAUTOPLAY_NEXT_VIDEO_TASK можешь смотреть в интернет чтобы брать максимально нужные и полезные подходы но они должны быть стабильными и актуальными, твоя задача дать мне полное пошаговое дейстиве что ты будешь деалть для решения этой задачи",
+    "timestamp": "2026-03-09T18:19:49.166Z"
+  },
+  {
+    "sessionId": "0e9049f5-8aad-43fb-8aec-2c06ff2f02cb",
+    "messageId": 5,
+    "type": "user",
+    "message": "теперь напиши для каждого файла такой отчет",
+    "timestamp": "2026-03-09T18:22:27.367Z"
+  },
+  {
+    "sessionId": "0e9049f5-8aad-43fb-8aec-2c06ff2f02cb",
+    "messageId": 6,
+    "type": "user",
+    "message": "напиши файлы пошаговых действий к заданиям которые лежат в файле докс",
+    "timestamp": "2026-03-09T18:24:03.706Z"
+  },
+  {
+    "sessionId": "0e9049f5-8aad-43fb-8aec-2c06ff2f02cb",
+    "messageId": 7,
+    "type": "user",
+    "message": "используя такстовые файлы и информацию которую можешь взять с интернета вниси в правки в мой проэкт, меняй толко то что надо для выполнения задания другое не меняй",
+    "timestamp": "2026-03-09T18:30:23.541Z"
+  },
+  {
+    "sessionId": "0e9049f5-8aad-43fb-8aec-2c06ff2f02cb",
+    "messageId": 8,
+    "type": "user",
+    "message": "что с файлом upload_screen",
+    "timestamp": "2026-03-09T18:35:30.594Z"
+  },
+  {
+    "sessionId": "0e9049f5-8aad-43fb-8aec-2c06ff2f02cb",
+    "messageId": 9,
+    "type": "user",
+    "message": "все супер, теперь твоя задача написать тектовый файл в докс, новая задча перенести плюсик добовляние видео в поле настроек напиши файл с точно поставленой задаче и там же напиши способы раелизиции максимально подробно",
+    "timestamp": "2026-03-09T18:40:27.889Z"
+  },
+  {
+    "sessionId": "0e9049f5-8aad-43fb-8aec-2c06ff2f02cb",
+    "messageId": 10,
+    "type": "user",
+    "message": "сделай эту задачу и конечный и сохрани отчет,отчет надо сохранять всегда",
+    "timestamp": "2026-03-09T18:42:43.669Z"
+  },
+  {
+    "sessionId": "3ddf0d60-5ec3-4c40-b255-b4c96e5c23d4",
+    "messageId": 0,
+    "type": "user",
+    "message": "проанализируй файлы докс и скажи в каких ф каких папках и файлах были произведены изменения",
+    "timestamp": "2026-03-09T18:49:35.159Z"
+  },
+  {
+    "sessionId": "d937f1d4-a96e-4653-a7dc-6fb1a8822fa9",
+    "messageId": 0,
+    "type": "user",
+    "message": "Привет",
+    "timestamp": "2026-03-16T19:31:57.212Z"
+  },
+  {
+    "sessionId": "34a3dda2-1d1a-46a2-b4da-ec8a8ad39708",
+    "messageId": 0,
+    "type": "user",
+    "message": "Выполни команду копирования всего содержимого из глобальной папки истории в локальную папку:\n   15    Copy-Item -Path \"C:\\Users\\budve\\.gemini\\history\\[ИМЯ_ПРОЕКТА]\\*\" -Destination \".\\.gemini\\\" -Recurse -Force -ErrorAction  \n      SilentlyContinue\n   16\n   17 4. Скопируй активные и временные чаты с диска C:\n   18    Выполни команду копирования всего содержимого из временной папки в локальную:\n   19    Copy-Item -Path \"C:\\Users\\budve\\.gemini\\tmp\\[ИМЯ_ПРОЕКТА]\\*\" -Destination \".\\.gemini\\\" -Recurse -Force -ErrorAction      \n      SilentlyContinue",
+    "timestamp": "2026-03-19T20:04:32.404Z"
+  }
+]

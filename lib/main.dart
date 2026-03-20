@@ -13,6 +13,7 @@ import 'firebase_options.dart';
 import 'l10n/app_localizations.dart';
 import 'providers.dart';
 import 'screens/shorts_page_view.dart';
+import 'services/ads_manager.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
@@ -22,6 +23,11 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
   await dotenv.load(fileName: ".env");
+  
+  if (!kIsWeb) {
+    await AdsManager.instance.initialize();
+  }
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );

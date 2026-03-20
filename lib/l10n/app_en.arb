@@ -15,5 +15,6 @@
     "statusProcessing": "Upload complete! Processing...",
     "like": "Like",
     "save": "Save",
-    "share": "Share"
+    "share": "Share",
+    "selectGenres": "Select Genres"
 }

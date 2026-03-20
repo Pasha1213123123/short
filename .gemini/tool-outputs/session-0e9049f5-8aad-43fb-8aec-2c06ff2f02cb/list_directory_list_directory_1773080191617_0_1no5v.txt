@@ -1,0 +1,3 @@
+{
+  "output": "Directory listing for D:\\Flutter\\shortrezerv\\DOCS:\n[DIR] analysis\nAUTOPLAY_NEXT_VIDEO_TASK.md (4942 bytes)\nFAB_LIKE_SHARE_FAVORITE_TASK.md (4837 bytes)\nGENRES_FROM_MUX_API_TASK.md (7822 bytes)\nPORTRAIT_ORIENTATION_TASK.md (1663 bytes)"
+}

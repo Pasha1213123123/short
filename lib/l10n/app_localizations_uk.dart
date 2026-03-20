@@ -59,4 +59,7 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get share => 'Поділитися';
+
+  @override
+  String get selectGenres => 'Виберіть жанри';
 }

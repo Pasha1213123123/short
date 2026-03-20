@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_performance/firebase_performance.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -93,6 +94,18 @@ class AutoplayNotifier extends StateNotifier<bool> {
   }
 }
 
+final firebaseAnalyticsProvider = Provider<FirebaseAnalytics>((ref) {
+  return FirebaseAnalytics.instance;
+});
+
+final firebaseCrashlyticsProvider = Provider<FirebaseCrashlytics>((ref) {
+  return FirebaseCrashlytics.instance;
+});
+
+final firebasePerformanceProvider = Provider<FirebasePerformance>((ref) {
+  return FirebasePerformance.instance;
+});
+
 final shortVideosProvider =
     StateNotifierProvider.autoDispose<ShortVideosNotifier, List<Movie>>((ref) {
   return ShortVideosNotifier(ref);
@@ -100,6 +113,8 @@ final shortVideosProvider =
 
 final currentVideoControllerProvider =
     StateProvider<VideoPlayerController?>((ref) => null);
+
+final isAdShowingProvider = StateProvider<bool>((ref) => false);
 
 final filterVisibilityProvider =
     StateProvider.autoDispose<bool>((ref) => false);
@@ -157,9 +172,10 @@ class ShortVideosNotifier extends StateNotifier<List<Movie>> {
   bool _isLoading = false;
 
   static const String _storageKey = 'cached_videos_feed';
-  final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
+  late final FirebaseAnalytics _analytics;
 
   ShortVideosNotifier(this._ref) : super([]) {
+    _analytics = _ref.read(firebaseAnalyticsProvider);
     _init();
   }
 
@@ -339,7 +355,7 @@ class ShortVideosNotifier extends StateNotifier<List<Movie>> {
             description: metadata['description']!,
             playbackId: playbackId,
             rating: 4.5,
-            genres: ['Mux', 'API'],
+            genres: metadata['genres'] as List<String>? ?? [],
             imageUrl:
                 'https://image.mux.com/$playbackId/thumbnail.jpg?width=200',
           ));
@@ -373,7 +389,8 @@ enum FeedStatus { initial, loading, success, error, empty }
 
 final feedStatusProvider =
     StateProvider<FeedStatus>((ref) => FeedStatus.initial);
-final selectedGenreProvider = StateProvider.autoDispose<String>((ref) => 'All');
+
+final selectedGenresProvider = StateProvider.autoDispose<Set<String>>((ref) => {});
 
 final availableGenresProvider = Provider.autoDispose<List<String>>((ref) {
   final allVideos = ref.watch(shortVideosProvider);
@@ -390,8 +407,10 @@ final availableGenresProvider = Provider.autoDispose<List<String>>((ref) {
 
 final filteredVideosProvider = Provider.autoDispose<List<Movie>>((ref) {
   final allVideos = ref.watch(shortVideosProvider);
-  final genre = ref.watch(selectedGenreProvider);
+  final selectedGenres = ref.watch(selectedGenresProvider);
 
-  if (genre == 'All') return allVideos;
-  return allVideos.where((v) => v.genres.contains(genre)).toList();
+  if (selectedGenres.isEmpty) return allVideos;
+  return allVideos
+      .where((v) => v.genres.any((g) => selectedGenres.contains(g)))
+      .toList();
 });

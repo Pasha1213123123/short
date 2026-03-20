@@ -1,16 +1,16 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/movie.dart';
 import '../providers.dart';
+import '../services/ads_manager.dart';
 import '../services/video_cache_manager.dart';
-import '../utils/constants.dart';
 import 'settings_screen.dart';
 import 'short_player_screen.dart';
-import 'upload_screen.dart';
 
 class ShortsPageView extends ConsumerStatefulWidget {
   const ShortsPageView({super.key});
@@ -22,12 +22,16 @@ class _ShortsPageViewState extends ConsumerState<ShortsPageView> {
   late PageController _pageController;
   int _currentIndex = 0;
 
-  final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
+  late final FirebaseAnalytics _analytics;
   final Stopwatch _watchTimeStopwatch = Stopwatch();
+
+  // Ads counters
+  int _swipeCounter = 0;
 
   @override
   void initState() {
     super.initState();
+    _analytics = ref.read(firebaseAnalyticsProvider);
     _pageController = PageController();
     _watchTimeStopwatch.start();
 
@@ -36,6 +40,20 @@ class _ShortsPageViewState extends ConsumerState<ShortsPageView> {
       if (videos.isNotEmpty) {
         _logVideoView(videos[0]);
         ref.read(videoCacheManagerProvider).preload(_currentIndex, videos);
+      }
+    });
+
+    // Listen for filter changes to reset index
+    ref.listenManual(filteredVideosProvider, (previous, next) {
+      if (previous != next) {
+        setState(() {
+          _currentIndex = 0;
+          _swipeCounter = 0; // Reset counters on filter change
+        });
+        if (_pageController.hasClients) {
+          _pageController.jumpToPage(0);
+        }
+        ref.read(videoCacheManagerProvider).preload(0, next);
       }
     });
   }
@@ -57,9 +75,50 @@ class _ShortsPageViewState extends ConsumerState<ShortsPageView> {
     );
   }
 
-  void _onPageChanged(int newIndex) {
+  Future<void> _tryToShowAd() async {
+    final adManager = AdsManager.instance;
+    if (adManager.isAdShowing) return;
+
+    // Log attempt
+    _analytics.logEvent(name: 'ad_interstitial_attempt');
+
+    // Pause video globally
+    ref.read(isAdShowingProvider.notifier).state = true;
+    final controller = ref.read(currentVideoControllerProvider);
+    
+    // Safety check just in case, but ShortPlayerScreen also listens to the provider
+    if (controller?.value.isPlaying ?? false) {
+      await controller?.pause();
+    }
+
+    // Enter full immersive mode (hide status bar and navigation bar)
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+
+    // Show ad and wait for dismissal
+    final adShown = await adManager.showInterstitialAd();
+    
+    if (adShown) {
+      _analytics.logEvent(name: 'ad_interstitial_success');
+    }
+
+    // Restore normal system UI
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
+    // Unpause globally
+    ref.read(isAdShowingProvider.notifier).state = false;
+  }
+
+  void _onPageChanged(int newIndex) async {
     final videos = ref.read(filteredVideosProvider);
     if (videos.isEmpty) return;
+
+    // Handle swipe counter (Trigger every swipe: N=3)
+    _swipeCounter++;
+    debugPrint('Swipe Counter: $_swipeCounter');
+    if (_swipeCounter >= 3) {
+      _swipeCounter = 0;
+      await _tryToShowAd();
+    }
 
     _watchTimeStopwatch.stop();
     if (_currentIndex < videos.length) {
@@ -189,10 +248,12 @@ class _ShortsPageViewState extends ConsumerState<ShortsPageView> {
                   isCurrent: index == _currentIndex,
                   onVideoFinished: () {
                     if (index < filteredVideos.length - 1) {
-                      _pageController.nextPage(
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOut,
-                      );
+                      if (mounted) {
+                        _pageController.nextPage(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        );
+                      }
                     }
                   },
                 );
@@ -207,7 +268,7 @@ class _ShortsPageViewState extends ConsumerState<ShortsPageView> {
 
   Widget _buildTopBar(BuildContext context, WidgetRef ref) {
     final showFilters = ref.watch(filterVisibilityProvider);
-    final selectedGenre = ref.watch(selectedGenreProvider);
+    final selectedGenres = ref.watch(selectedGenresProvider);
     final genres = ref.watch(availableGenresProvider);
     final theme = Theme.of(context);
 
@@ -261,14 +322,33 @@ class _ShortsPageViewState extends ConsumerState<ShortsPageView> {
                       ? SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: Row(
-                              children: genres
-                                  .map((g) => GenreFilterChip(
-                                      genre: g,
-                                      isSelected: selectedGenre == g,
-                                      onSelected: (val) => ref
-                                          .read(selectedGenreProvider.notifier)
-                                          .state = g))
-                                  .toList()))
+                              children: genres.map((g) {
+                            final isAll = g == 'All';
+                            final isSelected = isAll
+                                ? selectedGenres.isEmpty
+                                : selectedGenres.contains(g);
+
+                            return GenreFilterChip(
+                              genre: g,
+                              isSelected: isSelected,
+                              onSelected: (selected) {
+                                if (isAll) {
+                                  ref
+                                      .read(selectedGenresProvider.notifier)
+                                      .state = {};
+                                } else {
+                                  final current = ref.read(selectedGenresProvider);
+                                  if (selected) {
+                                    ref.read(selectedGenresProvider.notifier).state =
+                                        {...current, g};
+                                  } else {
+                                    ref.read(selectedGenresProvider.notifier).state =
+                                        {...current}..remove(g);
+                                  }
+                                }
+                              },
+                            );
+                          }).toList()))
                       : const SizedBox.shrink(),
                 ),
               ),
@@ -283,7 +363,7 @@ class _ShortsPageViewState extends ConsumerState<ShortsPageView> {
 class GenreFilterChip extends StatelessWidget {
   final String genre;
   final bool isSelected;
-  final Function(bool) onSelected;
+  final ValueChanged<bool> onSelected;
 
   const GenreFilterChip(
       {super.key,
@@ -295,7 +375,7 @@ class GenreFilterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4.0),
-      child: ChoiceChip(
+      child: FilterChip(
         label: Text(genre),
         selected: isSelected,
         onSelected: onSelected,

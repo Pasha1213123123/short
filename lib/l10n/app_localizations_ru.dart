@@ -59,4 +59,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get share => 'Поделиться';
+
+  @override
+  String get selectGenres => 'Выберите жанры';
 }

@@ -1,0 +1,3 @@
+{
+  "output": "Output: \n\n    ╨Ъ╨░╤В╨░╨╗╨╛╨│: D:\\Flutter\\shortrezerv\\DOCS\\analysis\n\n\nMode                 LastWriteTime         Length Name\n----                 -------------         ------ ----\nd-----        09.03.2026     20:13                my_prompts\nProcess Group PGID: 5560"
+}

@@ -201,6 +201,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Share'**
   String get share;
+
+  /// No description provided for @selectGenres.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Genres'**
+  String get selectGenres;
 }
 
 class _AppLocalizationsDelegate

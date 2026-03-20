@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../l10n/app_localizations.dart';
 import '../providers.dart';
 import '../theme/app_theme.dart';
+import '../utils/constants.dart';
 import '../utils/logger.dart';
 
 class UploadScreen extends ConsumerStatefulWidget {
@@ -183,10 +184,21 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
               maxLines: 3,
               enabled: !_isUploading,
             ),
-            const SizedBox(height: 16),
-            const Text("Select Genres:",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 8),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Icon(Icons.label_outline, color: colorScheme.primary, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  loc.selectGenres,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             _buildGenreSelection(),
             const SizedBox(height: 24),
             if (_statusMessage != null)
@@ -238,7 +250,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
 
     // Если список пуст (например, при первом запуске), добавим дефолтные для выбора
     if (genresToSelect.isEmpty) {
-      genresToSelect.addAll(['Action', 'Comedy', 'Drama', 'Horror', 'Sci-Fi']);
+      genresToSelect.addAll(AppConstants.defaultGenres);
     }
 
     return Wrap(
